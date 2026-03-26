@@ -6,7 +6,7 @@
 <title>Immo·Pro — Gestion Locative</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -182,62 +182,190 @@ tr:hover td{background:#FAFBFC}
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const { useState } = React;
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script type="text/javascript">
+// Safety check - if supabase didn't load, show error
+window.addEventListener('DOMContentLoaded', function() {
+  if (!window.supabase) {
+    document.getElementById('root').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#E74C3C;">Erreur : impossible de charger Supabase. Vérifiez votre connexion internet.</div>';
+  }
+});
+</script>
+<script type="text/javascript">
+const { useState, useEffect, useCallback } = React;
 
-const PROPS = [
-  {id:1,name:"Apt. Gambetta",type:"Appartement",address:"14 Rue Gambetta, 75020 Paris",rooms:3,area:68,loyer:1350,charges:80,dg:2700,status:"loue",tenantId:1,img:"🏢",features:["Balcon","Cave","Parking"],since:"2022-09-01"},
-  {id:2,name:"Maison Vincennes",type:"Maison",address:"8 Allée des Roses, 94300 Vincennes",rooms:5,area:120,loyer:2200,charges:150,dg:4400,status:"loue",tenantId:2,img:"🏡",features:["Jardin","Garage","Cave"],since:"2021-04-15"},
-  {id:3,name:"Studio Nation",type:"Studio",address:"3 Av. de la Nation, 75011 Paris",rooms:1,area:28,loyer:850,charges:40,dg:1700,status:"vacant",tenantId:null,img:"🏠",features:["Digicode","Interphone"],since:null},
-  {id:4,name:"Garage Bastille",type:"Garage",address:"12 Rue de Cotte, 75012 Paris",rooms:0,area:15,loyer:150,charges:0,dg:300,status:"loue",tenantId:3,img:"🅿️",features:["Sécurisé","Électricité"],since:"2023-01-01"},
-  {id:5,name:"Local Beaumarchais",type:"Local commercial",address:"22 Bd Beaumarchais, 75003 Paris",rooms:0,area:45,loyer:1800,charges:200,dg:3600,status:"travaux",tenantId:null,img:"🏪",features:["Vitrine","Cave"],since:null},
-];
+/* ── SUPABASE CONFIG ── */
+const SUPA_URL = 'https://ptprpnzxcnprzcuvhxks.supabase.co';
+const SUPA_KEY = 'sb_publishable_j38Voy7ug-Gs33xxWvq_iA_fJBRVoQ-';
+window._sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const sb = window._sb;
 
-const TENANTS = [
-  {id:1,name:"Sophie Martin",email:"sophie.martin@email.fr",phone:"06 12 34 56 78",propId:1,since:"2022-09-01",statusBail:"Actif",dg:2700,initials:"SM",notes:"Locataire sérieuse, paiements réguliers.",urgence:"Pierre Martin — 06 98 76 54 32"},
-  {id:2,name:"Thomas Renard",email:"t.renard@email.fr",phone:"06 45 67 89 01",propId:2,since:"2021-04-15",statusBail:"Actif",dg:4400,initials:"TR",notes:"Famille avec 2 enfants.",urgence:"Marie Renard — 06 11 22 33 44"},
-  {id:3,name:"Marc Dubois",email:"m.dubois@email.fr",phone:"06 78 90 12 34",propId:4,since:"2023-01-01",statusBail:"Actif",dg:300,initials:"MD",notes:"",urgence:""},
-];
+/* ── TYPE EMOJI MAP ── */
+const TYPE_EMOJI = {'Appartement':'🏢','Maison':'🏡','Studio':'🏠','Garage':'🅿️','Local commercial':'🏪'};
+const getInitials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 
-const PAYMENTS = [
-  {id:1,tid:1,pid:1,month:"Mars 2025",loyer:1350,charges:80,total:1430,status:"paye",date:"2025-03-02",mode:"Virement"},
-  {id:2,tid:1,pid:1,month:"Févr. 2025",loyer:1350,charges:80,total:1430,status:"paye",date:"2025-02-03",mode:"Virement"},
-  {id:3,tid:2,pid:2,month:"Mars 2025",loyer:2200,charges:150,total:2350,status:"retard",date:null,mode:null},
-  {id:4,tid:2,pid:2,month:"Févr. 2025",loyer:2200,charges:150,total:2350,status:"paye",date:"2025-02-01",mode:"Chèque"},
-  {id:5,tid:3,pid:4,month:"Mars 2025",loyer:150,charges:0,total:150,status:"paye",date:"2025-03-05",mode:"Virement"},
-  {id:6,tid:1,pid:1,month:"Avr. 2025",loyer:1350,charges:80,total:1430,status:"attente",date:null,mode:null},
-];
+/* ── GLOBAL STATE (loaded from Supabase) ── */
+let PROPS=[], TENANTS=[], PAYMENTS=[], TICKETS=[], DOCS=[], MSGS=[], ASSURANCES=[];
 
-const TICKETS = [
-  {id:1,title:"Fuite robinet cuisine",pid:1,tid:1,prio:"haute",status:"en_cours",date:"2025-03-10",desc:"Robinet cuisine qui goutte depuis 3 jours. Eau sous l'évier.",log:[{d:"2025-03-10",m:"Ticket créé"},{d:"2025-03-11",m:"Plombier contacté, intervention le 15/03"}]},
-  {id:2,title:"Interphone défectueux",pid:2,tid:2,prio:"normale",status:"nouveau",date:"2025-03-14",desc:"L'interphone ne fonctionne plus depuis une semaine.",log:[{d:"2025-03-14",m:"Ticket créé par le locataire"}]},
-  {id:3,title:"Chauffage insuffisant",pid:1,tid:1,prio:"haute",status:"resolu",date:"2025-02-20",desc:"Radiateur salon ne monte pas en température.",log:[{d:"2025-02-20",m:"Ticket créé"},{d:"2025-02-25",m:"Thermostat remplacé. Résolu."}]},
-];
+/* ── DATA LOADER ── */
+async function loadAllData() {
+  const [props,tenants,payments,tickets,docs] = await Promise.all([
+    sb.from('properties').select('*').order('created_at'),
+    sb.from('tenants').select('*').order('created_at'),
+    sb.from('payments').select('*').order('created_at'),
+    sb.from('tickets').select('*').order('created_at'),
+    sb.from('documents').select('*').order('created_at'),
+  ]);
+  // assurances table is optional - won't crash if not yet created
+  const assurances = await sb.from('assurances').select('*').order('created_at').then(r=>r).catch(()=>({data:[]}));
+  if(!assurances.data) assurances.data=[];
 
-const DOCS = [
-  {id:1,name:"Bail — Sophie Martin",type:"Bail",pid:1,tid:1,date:"2022-09-01",size:"1.2 Mo"},
-  {id:2,name:"Quittance Mars 2025",type:"Quittance",pid:1,tid:1,date:"2025-03-01",size:"320 Ko"},
-  {id:3,name:"État des lieux entrée",type:"État des lieux",pid:1,tid:1,date:"2022-09-01",size:"4.1 Mo"},
-  {id:4,name:"Diagnostic DPE — Gambetta",type:"Diagnostic",pid:1,tid:null,date:"2022-08-15",size:"890 Ko"},
-  {id:5,name:"Attestation assurance Renard",type:"Assurance",pid:2,tid:2,date:"2025-01-15",size:"540 Ko"},
-  {id:6,name:"Facture travaux cuisine",type:"Facture",pid:5,tid:null,date:"2025-03-08",size:"210 Ko"},
-];
+  PROPS = (props.data||[]).map(p=>({
+    ...p,
+    img: TYPE_EMOJI[p.type]||'🏠',
+    features: p.features ? (Array.isArray(p.features)?p.features:p.features.split(',').map(f=>f.trim())) : [],
+    tenantId: null,
+  }));
 
-const MSGS = [
-  {id:1,tid:1,name:"Sophie Martin",initials:"SM",preview:"Merci pour le retour !",time:"14:23",unread:0,conv:[
-    {from:"in",text:"Bonjour, j'ai un problème avec le robinet cuisine.",time:"10:00"},
-    {from:"out",text:"Bonjour Sophie, j'ai bien noté. Je contacte un plombier.",time:"10:15"},
-    {from:"in",text:"Merci pour le retour !",time:"14:23"},
-  ]},
-  {id:2,tid:2,name:"Thomas Renard",initials:"TR",preview:"Nous n'avons pas pu faire le virement.",time:"09:45",unread:2,conv:[
-    {from:"in",text:"Bonjour, nous avons un problème pour le loyer de mars.",time:"09:30"},
-    {from:"in",text:"Nous n'avons pas pu faire le virement.",time:"09:45"},
-  ]},
-];
+  TENANTS = (tenants.data||[]).map(t=>({
+    ...t,
+    propId: t.property_id,
+    statusBail: t.bail_status||'Actif',
+    initials: getInitials(t.name),
+    urgence: t.urgence_contact||'',
+  }));
 
-const eur = n => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+  // Link tenants to properties
+  TENANTS.forEach(t=>{ const p=PROPS.find(p=>p.id===t.property_id); if(p) p.tenantId=t.id; });
+
+  PAYMENTS = (payments.data||[]).map(p=>({
+    ...p,
+    tid: p.tenant_id,
+    pid: p.property_id,
+    date: p.payment_date,
+    mode: p.payment_mode||p.mode||null,
+  }));
+
+  TICKETS = (tickets.data||[]).map(t=>({
+    ...t,
+    pid: t.property_id,
+    tid: t.tenant_id,
+    prio: t.priority||'normale',
+    desc: t.description||'',
+    log: t.log ? (Array.isArray(t.log)?t.log:JSON.parse(t.log)) : [{d:t.created_at?.split('T')[0]||'',m:'Ticket créé'}],
+  }));
+
+  DOCS = (docs.data||[]).map(d=>({
+    ...d,
+    pid: d.property_id,
+    tid: d.tenant_id,
+    date: d.uploaded_at||d.created_at?.split('T')[0]||'',
+    size: d.size||'—',
+  }));
+
+  ASSURANCES = (assurances.data||[]).map(a=>({
+    ...a,
+    propId: a.property_id,
+    tenantId: a.tenant_id||null,
+    compagnie: a.compagnie||'',
+    numContrat: a.num_contrat||'',
+    contact: a.contact||'',
+  }));
+
+  MSGS = TENANTS.slice(0,3).map(t=>({
+    id:t.id, tid:t.id, name:t.name, initials:t.initials,
+    preview:'Aucun message pour l\'instant', time:'—', unread:0, conv:[],
+  }));
+
+  return true;
+}
+
+/* ── DB HELPERS ── */
+const db = {
+  addProperty: d => sb.from('properties').insert([d]).select(),
+  updateProperty: (id,d) => sb.from('properties').update(d).eq('id',id).select(),
+  addTenant: d => sb.from('tenants').insert([d]).select(),
+  addPayment: d => sb.from('payments').insert([d]).select(),
+  updatePayment: (id,d) => sb.from('payments').update(d).eq('id',id).select(),
+  addTicket: d => sb.from('tickets').insert([d]).select(),
+  updateTicket: (id,d) => sb.from('tickets').update(d).eq('id',id).select(),
+  addDoc: d => sb.from('documents').insert([d]).select(),
+  addAssurance: d => sb.from('assurances').insert([d]).select(),
+};
+
+const eur = n => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n||0);
 const propById = id => PROPS.find(p=>p.id===id);
 const tenantById = id => TENANTS.find(t=>t.id===id);
+
+/* ── AUTH GATE ── */
+function AuthGate({onAuth}) {
+  const [email,setEmail]=useState('');
+  const [pwd,setPwd]=useState('');
+  const [mode,setMode]=useState('login');
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
+  const [msg,setMsg]=useState('');
+
+  const handle = async e => {
+    e.preventDefault();
+    setLoading(true); setErr(''); setMsg('');
+    if(mode==='login') {
+      const {error} = await sb.auth.signInWithPassword({email,password:pwd});
+      if(error) setErr('Email ou mot de passe incorrect.');
+      else onAuth();
+    } else if(mode==='signup') {
+      const {error} = await sb.auth.signUp({email,password:pwd});
+      if(error) setErr(error.message);
+      else setMsg('Vérifiez votre email pour confirmer votre compte.');
+    } else {
+      const {error} = await sb.auth.resetPasswordForEmail(email);
+      if(error) setErr(error.message);
+      else setMsg('Email de réinitialisation envoyé !');
+    }
+    setLoading(false);
+  };
+
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#F8F9FA',display:'flex',alignItems:'center',justifyContent:'center',padding:20}},
+    React.createElement('div',{style:{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 8px 40px rgba(0,0,0,.12)'}},
+      React.createElement('div',{style:{textAlign:'center',marginBottom:32}},
+        React.createElement('div',{style:{fontSize:44,marginBottom:8}},'🏘'),
+        React.createElement('div',{style:{fontFamily:"'DM Serif Display',serif",fontSize:28,color:'#1B4F72',marginBottom:4}},'Immo·Pro'),
+        React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Gestion locative privée')
+      ),
+      err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:16}},err),
+      msg&&React.createElement('div',{style:{background:'#EAFAF1',border:'1px solid #A9DFBF',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#27AE60',marginBottom:16}},msg),
+      React.createElement('form',{onSubmit:handle},
+        React.createElement('div',{className:'form-group'},
+          React.createElement('label',{className:'form-label'},'Adresse email'),
+          React.createElement('input',{className:'form-input',type:'email',value:email,onChange:e=>setEmail(e.target.value),placeholder:'votre@email.fr',required:true})
+        ),
+        mode!=='reset'&&React.createElement('div',{className:'form-group'},
+          React.createElement('label',{className:'form-label'},'Mot de passe'),
+          React.createElement('input',{className:'form-input',type:'password',value:pwd,onChange:e=>setPwd(e.target.value),placeholder:'••••••••',required:mode!=='reset'})
+        ),
+        React.createElement('button',{type:'submit',className:'btn btn-primary',style:{width:'100%',justifyContent:'center',padding:'11px',fontSize:14,marginTop:8},disabled:loading},
+          loading?'Chargement…':mode==='login'?'Se connecter':mode==='signup'?'Créer mon compte':'Réinitialiser'
+        )
+      ),
+      React.createElement('div',{style:{marginTop:20,textAlign:'center',fontSize:13,color:'#9AA0A6',display:'flex',flexDirection:'column',gap:8}},
+        mode==='login'&&React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72'},onClick:()=>setMode('reset')},'Mot de passe oublié ?'),
+        mode==='login'&&React.createElement('span',null,'Pas encore de compte ? ',React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72',fontWeight:600},onClick:()=>setMode('signup')},'Créer un compte')),
+        mode!=='login'&&React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72'},onClick:()=>setMode('login')},'← Retour à la connexion')
+      )
+    )
+  );
+}
+
+/* ── LOADING SCREEN ── */
+function LoadingScreen() {
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#F8F9FA',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}},
+    React.createElement('div',{style:{fontSize:48}},'🏘'),
+    React.createElement('div',{style:{fontFamily:"'DM Serif Display',serif",fontSize:24,color:'#1B4F72'}},'Immo·Pro'),
+    React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Chargement de vos données…'),
+    React.createElement('div',{style:{width:40,height:40,border:'3px solid #E8EAED',borderTop:'3px solid #1B4F72',borderRadius:'50%',animation:'spin 1s linear infinite'}}),
+    React.createElement('style',null,'@keyframes spin{to{transform:rotate(360deg)}}')
+  );
+}
 
 const STATUS_INFO = {
   loue:{label:"Loué",cls:"b-success"},
@@ -827,7 +955,15 @@ function MessageriePage(){
 }
 
 function EspaceLocatairePage(){
-  const tenant=TENANTS[0];
+  const tenant=TENANTS[0]||null;
+  if(!tenant) return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Espace locataire')),
+    React.createElement('div',{className:'card'},React.createElement('div',{className:'card-body',style:{textAlign:'center',padding:40}},
+      React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🔑'),
+      React.createElement('div',{style:{fontWeight:600,marginBottom:8}},'Aucun locataire enregistré'),
+      React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Ajoutez d\'abord un locataire pour accéder à l\'espace locataire.')
+    ))
+  );
   const prop=propById(tenant.propId);
   const pays=PAYMENTS.filter(p=>p.tid===tenant.id);
   const myTickets=TICKETS.filter(t=>t.tid===tenant.id);
@@ -933,24 +1069,29 @@ function ProfilPage(){
   );
 }
 
-/* ── INSURANCE DATA ── */
-const ASSURANCES = [
-  {id:1,name:"MRH Sophie Martin",compagnie:"Groupama",propId:1,tenantId:1,type:"MRH locataire",debut:"2022-09-01",fin:"2026-09-01",prime:320,statut:"valide",contact:"0800 123 456",numContrat:"GRP-2022-44781"},
-  {id:2,name:"MRH Thomas Renard",compagnie:"AXA",propId:2,tenantId:2,type:"MRH locataire",debut:"2021-04-15",fin:"2025-04-15",prime:480,statut:"expire_bientot",contact:"0800 900 800",numContrat:"AXA-2021-89023"},
-  {id:3,name:"PNO Apt. Gambetta",compagnie:"Allianz",propId:1,tenantId:null,type:"PNO propriétaire",debut:"2022-01-01",fin:"2025-06-01",prime:280,statut:"expire_bientot",contact:"0970 808 808",numContrat:"ALZ-2022-10041"},
-  {id:4,name:"PNO Maison Vincennes",compagnie:"Maif",propId:2,tenantId:null,type:"PNO propriétaire",debut:"2021-01-01",fin:"2026-01-01",prime:420,statut:"valide",contact:"02 51 09 32 13",numContrat:"MAIF-2021-77234"},
-  {id:5,name:"PNO Studio Nation",compagnie:"Allianz",propId:3,tenantId:null,type:"PNO propriétaire",debut:"2023-03-01",fin:"2025-03-01",prime:150,statut:"expire",contact:"0970 808 808",numContrat:"ALZ-2023-20998"},
-];
-
 /* ── QUITTANCE PAGE ── */
 function QuittancePage(){
-  const [selTenant,setSelTenant]=useState(TENANTS[0]);
+  const [selTenant,setSelTenant]=useState(null);
   const [selPay,setSelPay]=useState(null);
   const [showPreview,setShowPreview]=useState(false);
-  const prop=propById(selTenant.propId);
-  const pays=PAYMENTS.filter(p=>p.tid===selTenant.id&&p.status==="paye");
 
+  // Pick first tenant if none selected yet and TENANTS loaded
+  const tenant = selTenant || (TENANTS.length>0 ? TENANTS[0] : null);
+  const prop = tenant ? propById(tenant.propId) : null;
+  const pays = tenant ? PAYMENTS.filter(p=>p.tid===tenant.id&&p.status==="paye") : [];
   const today=new Date().toLocaleDateString('fr-FR');
+
+  // Empty state
+  if(TENANTS.length===0) return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Génération de quittances')),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-body',style:{textAlign:'center',padding:40}},
+        React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📄'),
+        React.createElement('div',{style:{fontWeight:600,marginBottom:8}},'Aucun locataire enregistré'),
+        React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Ajoutez d\'abord des locataires dans l\'onglet "Locataires" pour générer des quittances.')
+      )
+    )
+  );
 
   return React.createElement('div',null,
     React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Génération de quittances')),
@@ -962,7 +1103,7 @@ function QuittancePage(){
           React.createElement('div',{className:'card-body'},
             React.createElement('div',{className:'form-group'},
               React.createElement('label',{className:'form-label'},'Locataire'),
-              React.createElement('select',{className:'form-input',onChange:e=>setSelTenant(TENANTS.find(t=>t.id===parseInt(e.target.value))||TENANTS[0]),value:selTenant.id},
+              React.createElement('select',{className:'form-input',onChange:e=>setSelTenant(TENANTS.find(t=>t.id===parseInt(e.target.value))||TENANTS[0]||null),value:tenant?.id},
                 TENANTS.map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))
               )
             ),
@@ -1028,9 +1169,9 @@ function QuittancePage(){
               ),
               React.createElement('div',null,
                 React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Locataire'),
-                React.createElement('div',{style:{fontSize:13,fontWeight:600}},selTenant.name),
+                React.createElement('div',{style:{fontSize:13,fontWeight:600}},tenant?.name||""),
                 React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},prop?prop.address:''),
-                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},selTenant.email)
+                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},tenant?.email||"")
               )
             ),
             React.createElement('table',{className:'quittance-table'},
@@ -1043,7 +1184,7 @@ function QuittancePage(){
             React.createElement('hr',{className:'quittance-divider'}),
             React.createElement('div',{style:{fontSize:12,color:'#5F6368',lineHeight:1.7,marginBottom:12}},
               'Je soussigné Jean-Pierre Fontaine, propriétaire du logement désigné ci-dessus, déclare avoir reçu de ',
-              React.createElement('strong',null,selTenant.name),
+              React.createElement('strong',null,tenant?.name||""),
               ' la somme de ',
               React.createElement('strong',null,selPay?eur(selPay.total):eur(prop?(prop.loyer+prop.charges):0)),
               ' au titre du loyer et des charges du mois indiqué ci-dessus, et lui en donne quittance, sous réserve de tous mes droits.'
@@ -1072,7 +1213,7 @@ function QuittancePage(){
             React.createElement('hr',{className:'quittance-divider'}),
             React.createElement('div',{className:'g2',style:{gap:16,marginBottom:16}},
               React.createElement('div',null,React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Bailleur'),React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Jean-Pierre Fontaine'),React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'jp.fontaine@email.fr')),
-              React.createElement('div',null,React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Locataire'),React.createElement('div',{style:{fontSize:13,fontWeight:600}},selTenant.name),React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},prop?prop.address:''))
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Locataire'),React.createElement('div',{style:{fontSize:13,fontWeight:600}},tenant?.name||""),React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},prop?prop.address:''))
             ),
             React.createElement('table',{className:'quittance-table'},React.createElement('tbody',null,
               React.createElement('tr',null,React.createElement('td',null,'Loyer hors charges'),React.createElement('td',{style:{textAlign:'right'}},selPay?eur(selPay.loyer):eur(prop?prop.loyer:0))),
@@ -1080,7 +1221,7 @@ function QuittancePage(){
               React.createElement('tr',null,React.createElement('td',null,'TOTAL'),React.createElement('td',{style:{textAlign:'right',color:'#1B4F72'}},selPay?eur(selPay.total):eur(prop?(prop.loyer+prop.charges):0)))
             )),
             React.createElement('hr',{className:'quittance-divider'}),
-            React.createElement('div',{style:{fontSize:12,color:'#5F6368',lineHeight:1.7,marginBottom:16}},'Je soussigné Jean-Pierre Fontaine, propriétaire du logement désigné ci-dessus, déclare avoir reçu de ',React.createElement('strong',null,selTenant.name),' la somme de ',React.createElement('strong',null,selPay?eur(selPay.total):'—'),' au titre du loyer et des charges, et lui en donne quittance.'),
+            React.createElement('div',{style:{fontSize:12,color:'#5F6368',lineHeight:1.7,marginBottom:16}},'Je soussigné Jean-Pierre Fontaine, propriétaire du logement désigné ci-dessus, déclare avoir reçu de ',React.createElement('strong',null,tenant?.name||""),' la somme de ',React.createElement('strong',null,selPay?eur(selPay.total):'—'),' au titre du loyer et des charges, et lui en donne quittance.'),
             React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}},
               React.createElement('div',null,React.createElement('div',{style:{fontSize:11,color:'#9AA0A6'}},'Émis le '+today),React.createElement('div',{style:{marginTop:24,borderTop:'1px solid #DADCE0',width:160,paddingTop:4,fontSize:11,color:'#9AA0A6'}},'Signature bailleur')),
               React.createElement('div',{className:'quittance-stamp'},'PAYÉ ✓')
@@ -1375,8 +1516,44 @@ const MOB_NAV=[{key:"dashboard",icon:"📊",label:"Accueil"},{key:"biens",icon:"
 function App(){
   const [page,setPage]=useState("dashboard");
   const [open,setOpen]=useState(false);
+  const [authed,setAuthed]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const [dataReady,setDataReady]=useState(false);
+  const [refresh,setRefresh]=useState(0);
+  const [userEmail,setUserEmail]=useState('');
+
+  // Check session on mount
+  useEffect(()=>{
+    sb.auth.getSession().then(({data:{session}})=>{
+      if(session){
+        setAuthed(true);
+        setUserEmail(session.user?.email||'');
+        loadAllData().then(()=>{setDataReady(true);setLoading(false);});
+      } else {
+        setLoading(false);
+      }
+    });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,session)=>{
+      if(session&&!authed){
+        setAuthed(true);
+        setUserEmail(session.user?.email||'');
+        loadAllData().then(()=>{setDataReady(true);});
+      } else if(!session) {
+        setAuthed(false); setDataReady(false); setUserEmail('');
+      }
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
   const go=k=>{setPage(k);setOpen(false);};
-  const pages={dashboard:React.createElement(Dashboard,{onNav:go}),biens:React.createElement(BiensPage,null),locataires:React.createElement(LocatairesPage,null),loyers:React.createElement(LoyersPage,null),documents:React.createElement(DocumentsPage,null),incidents:React.createElement(IncidentsPage,null),messagerie:React.createElement(MessageriePage,null),quittances:React.createElement(QuittancePage,null),calendrier:React.createElement(CalendarPage,null),assurances:React.createElement(AssurancesPage,null),locataire:React.createElement(EspaceLocatairePage,null),profil:React.createElement(ProfilPage,null)};
+  const reload=()=>{ loadAllData().then(()=>setRefresh(r=>r+1)); };
+  const signOut=()=>{ sb.auth.signOut(); };
+
+  if(loading) return React.createElement(LoadingScreen,null);
+  if(!authed) return React.createElement(AuthGate,{onAuth:()=>{ loadAllData().then(()=>{setDataReady(true);setAuthed(true);}); }});
+  if(!dataReady) return React.createElement(LoadingScreen,null);
+
+  const pages={dashboard:React.createElement(Dashboard,{onNav:go,reload}),biens:React.createElement(BiensPage,{reload}),locataires:React.createElement(LocatairesPage,{reload}),loyers:React.createElement(LoyersPage,{reload}),documents:React.createElement(DocumentsPage,{reload}),incidents:React.createElement(IncidentsPage,{reload}),messagerie:React.createElement(MessageriePage,null),quittances:React.createElement(QuittancePage,null),calendrier:React.createElement(CalendarPage,null),assurances:React.createElement(AssurancesPage,{reload}),locataire:React.createElement(EspaceLocatairePage,null),profil:React.createElement(ProfilPage,{signOut})};
   const label=NAV.find(n=>n.key===page)?.label||'';
   return React.createElement('div',{className:'app'},
     React.createElement('aside',{className:'sidebar'+(open?' open':'')},
@@ -1395,10 +1572,13 @@ function App(){
         ))
       ),
       React.createElement('div',{className:'sidebar-user'},
-        React.createElement('div',{className:'user-card',onClick:()=>go('profil')},
-          React.createElement('div',{className:'avatar',style:{width:32,height:32,fontSize:11}},'JP'),
-          React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Jean-Pierre Fontaine'),React.createElement('div',{style:{fontSize:11,color:'#9AA0A6'}},'Administrateur')),
-          React.createElement('span',{style:{fontSize:14,color:'#BDC1C6'}},'⚙')
+        React.createElement('div',{className:'user-card'},
+          React.createElement('div',{className:'avatar',style:{width:32,height:32,fontSize:11},onClick:()=>go('profil')},'✉'),
+          React.createElement('div',{style:{flex:1,minWidth:0},onClick:()=>go('profil')},
+            React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#202124'}},userEmail||'Chargement…'),
+            React.createElement('div',{style:{fontSize:10,color:'#9AA0A6'}},'Propriétaire')
+          ),
+          React.createElement('span',{title:'Déconnexion',style:{fontSize:16,cursor:'pointer',color:'#BDC1C6',padding:'4px'},onClick:e=>{e.stopPropagation();signOut();}},'⏏')
         )
       )
     ),
@@ -1410,7 +1590,7 @@ function App(){
           React.createElement('div',{className:'search-box'},React.createElement('span',{style:{color:'#9AA0A6',marginRight:6}},'🔍'),React.createElement('input',{placeholder:'Rechercher…'})),
           React.createElement('div',{className:'icon-btn',onClick:()=>go('messagerie')},'💬',React.createElement('div',{className:'notif-dot'})),
           React.createElement('div',{className:'icon-btn'},'🔔',React.createElement('div',{className:'notif-dot'})),
-          React.createElement('div',{className:'avatar',style:{width:34,height:34,fontSize:11,cursor:'pointer'},onClick:()=>go('profil')},'JP')
+          React.createElement('div',{className:'avatar',style:{width:34,height:34,fontSize:11,cursor:'pointer'},onClick:()=>go('profil')},'✉')
         )
       ),
       React.createElement('div',{className:'content'},pages[page]||pages.dashboard)
