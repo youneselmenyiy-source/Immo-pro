@@ -284,7 +284,9 @@ async function loadAllData() {
 const db = {
   addProperty: d => sb.from('properties').insert([d]).select(),
   updateProperty: (id,d) => sb.from('properties').update(d).eq('id',id).select(),
+  deleteProperty: id => sb.from('properties').delete().eq('id',id),
   addTenant: d => sb.from('tenants').insert([d]).select(),
+  deleteTenant: id => sb.from('tenants').delete().eq('id',id),
   addPayment: d => sb.from('payments').insert([d]).select(),
   updatePayment: (id,d) => sb.from('payments').update(d).eq('id',id).select(),
   addTicket: d => sb.from('tickets').insert([d]).select(),
@@ -533,6 +535,13 @@ function BiensPage({reload}){
 }
 
 function PropDetail({prop,onBack}){
+  const [deleting,setDeleting]=useState(false);
+  const handleDeleteProp=async()=>{
+    if(!window.confirm('Supprimer ce bien ?')) return;
+    setDeleting(true);
+    await db.deleteProperty(prop.id);
+    window.location.reload();
+  };
   const si=STATUS_INFO[prop.status]||STATUS_INFO.vacant;
   const tenant=TENANTS.find(t=>t.propId===prop.id);
   const pays=PAYMENTS.filter(p=>p.pid===prop.id).slice(0,5);
@@ -540,7 +549,8 @@ function PropDetail({prop,onBack}){
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:22}},
       React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
       React.createElement('h1',{style:{fontSize:20,fontWeight:700}},prop.name),
-      React.createElement(Bdg,{type:si.cls},si.label)
+      React.createElement(Bdg,{type:si.cls},si.label),
+      React.createElement('button',{className:'btn',style:{marginLeft:'auto',background:'#E74C3C',color:'#fff'},onClick:handleDeleteProp,disabled:deleting},deleting?'Suppression…':'🗑 Supprimer')
     ),
     React.createElement('div',{className:'g2'},
       React.createElement('div',null,
@@ -823,13 +833,21 @@ function LocatairesPage({reload}){
 }
 
 function TenantDetail({tenant,onBack}){
+  const [deleting2,setDeleting2]=useState(false);
+  const handleDeleteTenant=async()=>{
+    if(!window.confirm('Supprimer ce locataire ?')) return;
+    setDeleting2(true);
+    await db.deleteTenant(tenant.id);
+    window.location.reload();
+  };
   const prop=propById(tenant.propId);
   const pays=PAYMENTS.filter(p=>p.tid===tenant.id);
   const myTickets=TICKETS.filter(t=>t.tid===tenant.id);
   return React.createElement('div',null,
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:22}},
       React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
-      React.createElement('h1',{style:{fontSize:20,fontWeight:700}},'Fiche locataire')
+      React.createElement('h1',{style:{fontSize:20,fontWeight:700}},'Fiche locataire'),
+      React.createElement('button',{className:'btn',style:{marginLeft:'auto',background:'#E74C3C',color:'#fff'},onClick:handleDeleteTenant,disabled:deleting2},deleting2?'Suppression…':'🗑 Supprimer')
     ),
     React.createElement('div',{className:'g2'},
       React.createElement('div',null,
