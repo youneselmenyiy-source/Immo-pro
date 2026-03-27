@@ -796,8 +796,10 @@ function TenantDetail({tenant,onBack}){
     React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:22}},
       React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
       React.createElement('h1',{style:{fontSize:20,fontWeight:700}},'Fiche locataire'),
-      React.createElement('button',{className:'btn',style:{marginLeft:'auto',background:'#E74C3C',color:'#fff'},onClick:handleDeleteTenant,disabled:deleting2},deleting2?'Suppression…':'🗑 Supprimer')
+      React.createElement('button',{className:'btn btn-primary',style:{marginLeft:'auto'},onClick:()=>setEditing(true)},'✏️ Modifier'),
+      React.createElement('button',{className:'btn',style:{background:'#E74C3C',color:'#fff'},onClick:handleDeleteTenant,disabled:deleting2},deleting2?'Suppression…':'🗑 Supprimer')
     ),
+    editing&&React.createElement(EditLocataireModal,{tenant,onClose:()=>setEditing(false)}),
     React.createElement('div',{className:'g2'},
       React.createElement('div',null,
         React.createElement('div',{className:'card',style:{marginBottom:16}},
