@@ -395,6 +395,1878 @@ function Bdg({type,children}){
   return React.createElement('span',{className:'badge '+type},children);
 }
 
+function Dashboard({onNav}){
+  const now=new Date();
+  const moisCourant=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][now.getMonth()]+' '+now.getFullYear();
+  const loues=PROPS.filter(p=>p.status==='loue'||p.status==='loué').length;
+  const vacants=PROPS.filter(p=>p.status==='vacant').length;
+  const travaux=PROPS.filter(p=>p.status==='travaux').length;
+  const enc=PAYMENTS.filter(p=>p.status==='paye').reduce((a,p)=>a+(p.total||p.loyer||0),0);
+  const retardList=PAYMENTS.filter(p=>p.status==='retard'||p.status==='attente');
+  const ret=retardList.reduce((a,p)=>a+(p.total||p.loyer||0),0);
+  const alerts=[];
+  retardList.forEach(p=>{
+    const t=TENANTS.find(x=>x.id===p.tenant_id||x.id===p.tid);
+    const pr=PROPS.find(x=>x.id===p.property_id||x.id===p.pid);
+    alerts.push({type:'alert-danger',icon:'⚠️',title:'Loyer en attente',desc:(t?t.name:'?')+(p.month?' — '+p.month:'')+(p.total?' ('+eur(p.total||p.loyer||0)+')':'')});
+  });
+  TICKETS.filter(t=>t.status==='nouveau'||t.status==='en_cours').forEach(t=>{
+    const pr=PROPS.find(x=>x.id===t.property_id||x.id===t.pid);
+    alerts.push({type:'alert-info',icon:'🔔',title:'Ticket ouvert',desc:(t.title||'')+(pr?' — '+pr.name:'')});
+  });
+  const recentPays=[...PAYMENTS].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,3).map(p=>{
+    const t=TENANTS.find(x=>x.id===p.tenant_id||x.id===p.tid);
+    const pr=PROPS.find(x=>x.id===p.property_id||x.id===p.pid);
+    return {icon:'💰',bg:'#EAFAF1',title:'Paiement — '+(t?t.name:'?'),sub:eur(p.total||p.loyer||0)+(pr?' · '+pr.name:'')};
+  });
+  const recentTickets=[...TICKETS].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,2).map(t=>{
+    const pr=PROPS.find(x=>x.id===t.property_id||x.id===t.pid);
+    return {icon:'🔧',bg:'#FEF9E7',title:'Ticket — '+(t.title||''),sub:pr?pr.name:''};
+  });
+  const activity=[...recentPays,...recentTickets];
+  const paysMois=PAYMENTS.filter(p=>{
+    if(!p.month) return false;
+    const moisFr=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][now.getMonth()];
+    return p.month.toLowerCase().includes(moisFr.toLowerCase())||p.month.includes(String(now.getFullYear()));
+  });
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},
+      React.createElement('div',null,
+        React.createElement('h1',null,'Tableau de bord'),
+        React.createElement('div',{style:{fontSize:13,color:'#9AA0A6',marginTop:3}},'Bienvenue 👋 — '+moisCourant)
+      ),
+      React.createElement('button',{className:'btn btn-primary',onClick:()=>onNav('biens')},'+ Nouveau bien')
+    ),
+    React.createElement('div',{className:'kpi-grid'},
+      [{label:"Biens gérés",val:String(PROPS.length),sub:loues+' loué'+(loues>1?'s':'')+' · '+vacants+' vacant'+(vacants>1?'s':'')+(travaux?' · '+travaux+' travaux':''),icon:"🏢",clr:null},
+       {label:"Locataires actifs",val:String(TENANTS.length),sub:"Baux en cours",icon:"👥",clr:null},
+       {label:"Loyers encaissés",val:eur(enc),sub:"Ce mois",icon:"✅",clr:null},
+       {label:"En retard",val:eur(ret),sub:retardList.length+' locataire'+(retardList.length>1?'s':''),icon:"⚠️",clr:ret>0?"#E74C3C":null},
+      ].map(k=>React.createElement('div',{key:k.label,className:'kpi'},
+        React.createElement('div',{className:'kpi-label'},k.label),
+        React.createElement('div',{className:'kpi-value',style:k.clr?{color:k.clr}:{}},k.val),
+        React.createElement('div',{className:'kpi-sub'},k.sub),
+        React.createElement('div',{className:'kpi-icon'},k.icon)
+      ))
+    ),
+    React.createElement('div',{className:'g2',style:{marginBottom:20}},
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Alertes')),
+        React.createElement('div',{className:'card-body'},
+          alerts.length===0
+            ? React.createElement('div',{style:{color:'#BDC1C6',fontSize:13,padding:'12px 0',textAlign:'center'}},'✅ Aucune alerte')
+            : alerts.map((a,i)=>React.createElement('div',{key:i,className:'alert-item '+a.type},
+                React.createElement('span',{style:{fontSize:17}},a.icon),
+                React.createElement('div',{style:{flex:1}},
+                  React.createElement('div',{style:{fontSize:13,fontWeight:600}},a.title),
+                  React.createElement('div',{style:{fontSize:12,color:'#5F6368',marginTop:2}},a.desc)
+                )
+              ))
+        )
+      ),
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Activité récente')),
+        React.createElement('div',{className:'card-body'},
+          activity.length===0
+            ? React.createElement('div',{style:{color:'#BDC1C6',fontSize:13,padding:'12px 0',textAlign:'center'}},'Aucune activité récente')
+            : activity.map((it,i)=>React.createElement('div',{key:i,className:'tl-item'},
+                React.createElement('div',{className:'tl-dot',style:{background:it.bg}},it.icon),
+                React.createElement('div',{className:'tl-body'},
+                  React.createElement('div',{className:'tl-title'},it.title),
+                  React.createElement('div',{className:'tl-sub'},it.sub)
+                )
+              ))
+        )
+      )
+    ),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-header'},
+        React.createElement('span',{className:'card-title'},'Loyers — '+moisCourant),
+        React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>onNav('loyers')},'Voir tout →')
+      ),
+      React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+        React.createElement('div',{className:'tbl-wrap'},
+          React.createElement('table',null,
+            React.createElement('thead',null,React.createElement('tr',null,
+              React.createElement('th',null,'Locataire'),React.createElement('th',null,'Bien'),
+              React.createElement('th',null,'Montant'),React.createElement('th',null,'Statut'),React.createElement('th',null,'Date')
+            )),
+            React.createElement('tbody',null,
+              paysMois.length===0
+                ? React.createElement('tr',null,React.createElement('td',{colSpan:5,style:{textAlign:'center',color:'#BDC1C6',padding:'20px'}},'Aucun paiement ce mois'))
+                : paysMois.map(p=>{
+                    const t=TENANTS.find(x=>x.id===p.tenant_id||x.id===p.tid);
+                    const pr=PROPS.find(x=>x.id===p.property_id||x.id===p.pid);
+                    const pi=PAY_INFO[p.status]||PAY_INFO.attente;
+                    return React.createElement('tr',{key:p.id},
+                      React.createElement('td',null,React.createElement('strong',{style:{fontSize:13}},t?t.name:'—')),
+                      React.createElement('td',{style:{fontSize:13,color:'#5F6368'}},pr?pr.name:'—'),
+                      React.createElement('td',null,React.createElement('strong',null,eur(p.total||p.loyer||0))),
+                      React.createElement('td',null,React.createElement(Bdg,{type:pi.cls},pi.label)),
+                      React.createElement('td',{style:{fontSize:12,color:'#9AA0A6'}},p.payment_date||p.date||'—')
+                    );
+                  })
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+
+function BiensPage({reload}){
+  const [filter,setFilter]=useState("tous");
+  const [search,setSearch]=useState("");
+  const [selected,setSelected]=useState(null);
+  const [modal,setModal]=useState(false);
+  if(selected) return React.createElement(PropDetail,{prop:selected,onBack:()=>setSelected(null)});
+  const list=PROPS.filter(p=>{
+    if(filter!=="tous"&&p.status!==filter) return false;
+    if(search&&!p.name.toLowerCase().includes(search.toLowerCase())&&!p.address.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},
+      React.createElement('h1',null,'Mes biens'),
+      React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(true)},'+ Ajouter un bien')
+    ),
+    React.createElement('div',{style:{display:'flex',gap:12,alignItems:'center',marginBottom:20,flexWrap:'wrap'}},
+      React.createElement('div',{className:'tabs'},
+        [["tous","Tous"],["loue","Loués"],["vacant","Vacants"],["travaux","En travaux"]].map(([k,l])=>
+          React.createElement('div',{key:k,className:'tab'+(filter===k?' active':''),onClick:()=>setFilter(k)},l)
+        )
+      ),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,background:'#F8F9FA',border:'1px solid #E8EAED',borderRadius:8,padding:'7px 12px',marginLeft:'auto'}},
+        React.createElement('span',{style:{color:'#9AA0A6'}},'🔍'),
+        React.createElement('input',{placeholder:'Rechercher…',value:search,onChange:e=>setSearch(e.target.value),style:{background:'none',border:'none',outline:'none',fontSize:13,width:160,fontFamily:"'Plus Jakarta Sans',sans-serif"}})
+      )
+    ),
+    React.createElement('div',{className:'prop-grid'},
+      list.map(p=>{
+        const si=STATUS_INFO[p.status]||STATUS_INFO.vacant;
+        return React.createElement('div',{key:p.id,className:'prop-card',onClick:()=>setSelected(p)},
+          React.createElement('div',{className:'prop-img'},
+            React.createElement('span',null,p.img),
+            React.createElement('div',{className:'prop-status-badge'},React.createElement(Bdg,{type:si.cls},si.label))
+          ),
+          React.createElement('div',{className:'prop-info'},
+            React.createElement('div',{className:'prop-name'},p.name),
+            React.createElement('div',{className:'prop-addr'},p.type+' · '+(p.address.split(',')[1]||'').trim()),
+            React.createElement('div',{className:'prop-stats'},
+              p.area>0&&React.createElement('span',{className:'prop-stat'},'📐 '+p.area+' m²'),
+              p.rooms>0&&React.createElement('span',{className:'prop-stat'},'🚪 '+p.rooms+'p'),
+              React.createElement('strong',{style:{marginLeft:'auto',color:'#1B4F72',fontSize:13}},p.loyer>0?eur(p.loyer)+'/mois':'—')
+            )
+          )
+        );
+      })
+    ),
+    modal&&React.createElement(AddBienModal,{onClose:()=>setModal(false),onSaved:reload})
+  );
+}
+
+function PropDetail({prop,onBack}){
+  const [deleting,setDeleting]=useState(false);
+  const handleDeleteProp=async()=>{
+    if(!window.confirm('Supprimer ce bien ?')) return;
+    setDeleting(true);
+    await db.deleteProperty(prop.id);
+    window.location.reload();
+  };
+  const si=STATUS_INFO[prop.status]||STATUS_INFO.vacant;
+  const tenant=TENANTS.find(t=>t.propId===prop.id);
+  const pays=PAYMENTS.filter(p=>p.pid===prop.id).slice(0,5);
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:22}},
+      React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
+      React.createElement('h1',{style:{fontSize:20,fontWeight:700}},prop.name),
+      React.createElement(Bdg,{type:si.cls},si.label),
+      React.createElement('button',{className:'btn',style:{marginLeft:'auto',background:'#E74C3C',color:'#fff'},onClick:handleDeleteProp,disabled:deleting},deleting?'Suppression…':'🗑 Supprimer')
+    ),
+    React.createElement('div',{className:'g2'},
+      React.createElement('div',null,
+        React.createElement('div',{style:{height:180,background:'linear-gradient(135deg,#1B4F72,#2980B9)',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',fontSize:64,marginBottom:16}},prop.img),
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Informations')),
+          React.createElement('div',{className:'card-body'},
+            [["Type",prop.type],["Adresse",prop.address],["Surface",prop.area+" m²"],["Pièces",prop.rooms||"—"],
+             ["Loyer HC",eur(prop.loyer)],["Charges",eur(prop.charges)],["Dépôt de garantie",eur(prop.dg)],
+             ["En location depuis",prop.since||"Non loué"]].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},
+                React.createElement('span',{className:'stat-label'},l),
+                React.createElement('span',{className:'stat-val',style:{fontSize:12}},v)
+              )
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Équipements')),
+          React.createElement('div',{className:'card-body',style:{display:'flex',gap:8,flexWrap:'wrap'}},
+            prop.features.map(f=>React.createElement(Bdg,{key:f,type:'b-gray'},f))
+          )
+        )
+      ),
+      React.createElement('div',null,
+        tenant&&React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Locataire')),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:14}},
+              React.createElement('div',{className:'avatar',style:{width:44,height:44,fontSize:14}},tenant.initials),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700}},tenant.name),
+                React.createElement('div',{style:{fontSize:12,color:'#9AA0A6'}},tenant.email)
+              )
+            ),
+            [["Entrée",tenant.since],["Statut bail",tenant.statusBail],["Dépôt de garantie",eur(tenant.dg)]].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},
+                React.createElement('span',{className:'stat-label'},l),
+                React.createElement('span',{className:'stat-val'},v)
+              )
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Derniers paiements')),
+          React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+            React.createElement('table',null,
+              React.createElement('thead',null,React.createElement('tr',null,React.createElement('th',null,'Mois'),React.createElement('th',null,'Montant'),React.createElement('th',null,'Statut'))),
+              React.createElement('tbody',null,
+                pays.length===0?React.createElement('tr',null,React.createElement('td',{colSpan:3,style:{textAlign:'center',color:'#BDC1C6',fontSize:13,padding:16}},'Aucun paiement')):
+                pays.map(p=>{const pi=PAY_INFO[p.status]||PAY_INFO.attente;return React.createElement('tr',{key:p.id},
+                  React.createElement('td',{style:{fontSize:13}},p.month),
+                  React.createElement('td',null,React.createElement('strong',null,eur(p.total))),
+                  React.createElement('td',null,React.createElement(Bdg,{type:pi.cls},pi.label))
+                );})
+              )
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+function AddBienModal({onClose,onSaved}){
+  const [form,setForm]=useState({name:'',type:'Appartement',address:'',area:'',rooms:'',loyer:'',charges:'',dg:'',description:''});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const save=async()=>{
+    if(!form.name||!form.address){setErr('Nom et adresse obligatoires.');return;}
+    setSaving(true);setErr('');
+    const {error}=await db.addProperty({
+      name:form.name,type:form.type,address:form.address,
+      area:parseInt(form.area)||0,rooms:parseInt(form.rooms)||0,
+      loyer:parseInt(form.loyer)||0,charges:parseInt(form.charges)||0,
+      dg:parseInt(form.dg)||0,description:form.description,status:'vacant',
+    });
+    setSaving(false);
+    if(error){setErr('Erreur : '+error.message);return;}
+    window.location.reload();
+  };
+  return React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('div',{className:'modal-title'},'Ajouter un bien'),
+        React.createElement('div',{className:'modal-close',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-bd'},
+        err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:12}},err),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Nom du bien *'),React.createElement('input',{className:'form-input',placeholder:'Ex: Apt. République',value:form.name,onChange:set('name')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Type'),
+            React.createElement('select',{className:'form-input',value:form.type,onChange:set('type')},
+              ['Appartement','Maison','Studio','Garage','Local commercial'].map(t=>React.createElement('option',{key:t},t))
+            )
+          )
+        ),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Adresse complète *'),React.createElement('input',{className:'form-input',placeholder:'Numéro, rue, ville, code postal',value:form.address,onChange:set('address')})),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Surface (m²)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.area,onChange:set('area')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Nb de pièces'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.rooms,onChange:set('rooms')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Loyer HC (€/mois)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.loyer,onChange:set('loyer')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Charges (€/mois)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.charges,onChange:set('charges')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Dépôt de garantie (€)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.dg,onChange:set('dg')})),
+          React.createElement('div',{className:'form-group'})
+        ),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Description'),React.createElement('textarea',{className:'form-input',rows:3,placeholder:'Description…',value:form.description,onChange:set('description')}))
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Annuler'),
+        React.createElement('button',{className:'btn btn-primary',onClick:save,disabled:saving},saving?'Enregistrement…':'✓ Enregistrer')
+      )
+    )
+  );
+}
+
+function AddLocataireModal({onClose,onSaved}){
+  const [form,setForm]=useState({name:'',email:'',phone:'',property_id:'',since:'',bail_status:'Actif',dg:'',notes:'',urgence_contact:''});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const save=async()=>{
+    if(!form.name||!form.email){setErr('Nom et email obligatoires.');return;}
+    setSaving(true);setErr('');
+    const {error}=await db.addTenant({
+      name:form.name,email:form.email,phone:form.phone,
+      property_id:form.property_id||null,
+      since:form.since||null,bail_status:form.bail_status,
+      dg:parseInt(form.dg)||0,notes:form.notes,urgence_contact:form.urgence_contact,
+    });
+    setSaving(false);
+    if(error){setErr('Erreur : '+error.message);return;}
+    window.location.reload();
+  };
+  return React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('div',{className:'modal-title'},'Ajouter un locataire'),
+        React.createElement('div',{className:'modal-close',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-bd'},
+        err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:12}},err),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Nom complet *'),React.createElement('input',{className:'form-input',placeholder:'Ex: Sophie Martin',value:form.name,onChange:set('name')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Email *'),React.createElement('input',{className:'form-input',type:'email',placeholder:'email@exemple.fr',value:form.email,onChange:set('email')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Téléphone'),React.createElement('input',{className:'form-input',placeholder:'06 XX XX XX XX',value:form.phone,onChange:set('phone')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Bien loué'),
+            React.createElement('select',{className:'form-input',value:form.property_id,onChange:set('property_id')},
+              React.createElement('option',{value:''},'-- Aucun --'),
+              PROPS.map(p=>React.createElement('option',{key:p.id,value:p.id},p.name))
+            )
+          )
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Date d\'entrée'),React.createElement('input',{className:'form-input',type:'date',value:form.since,onChange:set('since')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Dépôt de garantie (€)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0',value:form.dg,onChange:set('dg')}))
+        ),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Contact urgence'),React.createElement('input',{className:'form-input',placeholder:'Nom — 06 XX XX XX XX',value:form.urgence_contact,onChange:set('urgence_contact')})),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Notes'),React.createElement('textarea',{className:'form-input',rows:2,placeholder:'Informations complémentaires…',value:form.notes,onChange:set('notes')}))
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Annuler'),
+        React.createElement('button',{className:'btn btn-primary',onClick:save,disabled:saving},saving?'Enregistrement…':'✓ Enregistrer')
+      )
+    )
+  );
+}
+
+function AddPaiementModal({onClose,onSaved}){
+  const [form,setForm]=useState({tenant_id:'',property_id:'',month:'',loyer:'',charges:'',status:'paye',payment_date:'',payment_mode:'Virement'});
+  const [saving,setSaving]=useState(false);
+  const [err,setErr]=useState('');
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const save=async()=>{
+    if(!form.tenant_id||!form.month){setErr('Locataire et période obligatoires.');return;}
+    setSaving(true);setErr('');
+    const loyer=parseInt(form.loyer)||0;
+    const charges=parseInt(form.charges)||0;
+    const {error}=await db.addPayment({
+      tenant_id:form.tenant_id,property_id:form.property_id||null,
+      month:form.month,loyer,charges,total:loyer+charges,
+      status:form.status,payment_date:form.payment_date||null,
+      payment_mode:form.payment_mode,
+    });
+    setSaving(false);
+    if(error){setErr('Erreur : '+error.message);return;}
+    window.location.reload();
+  };
+  return React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-hd'},
+        React.createElement('div',{className:'modal-title'},'Saisir un paiement'),
+        React.createElement('div',{className:'modal-close',onClick:onClose},'✕')
+      ),
+      React.createElement('div',{className:'modal-bd'},
+        err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:12}},err),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Locataire *'),
+            React.createElement('select',{className:'form-input',value:form.tenant_id,onChange:e=>{
+              const t=TENANTS.find(t=>t.id===e.target.value)||TENANTS.find(t=>t.id==e.target.value);
+              setForm(f=>({...f,tenant_id:e.target.value,property_id:t?.propId||t?.property_id||'',loyer:String(propById(t?.propId||t?.property_id)?.loyer||''),charges:String(propById(t?.propId||t?.property_id)?.charges||'')}));
+            }},
+              React.createElement('option',{value:''},'-- Choisir --'),
+              TENANTS.map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))
+            )
+          ),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Période *'),React.createElement('input',{className:'form-input',placeholder:'Ex: Mars 2025',value:form.month,onChange:set('month')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Loyer HC (€)'),React.createElement('input',{className:'form-input',type:'number',value:form.loyer,onChange:set('loyer')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Charges (€)'),React.createElement('input',{className:'form-input',type:'number',value:form.charges,onChange:set('charges')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Statut'),
+            React.createElement('select',{className:'form-input',value:form.status,onChange:set('status')},
+              React.createElement('option',{value:'paye'},'Payé'),React.createElement('option',{value:'attente'},'En attente'),React.createElement('option',{value:'retard'},'En retard')
+            )
+          ),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Mode de paiement'),
+            React.createElement('select',{className:'form-input',value:form.payment_mode,onChange:set('payment_mode')},
+              ['Virement','Chèque','Espèces','Prélèvement'].map(m=>React.createElement('option',{key:m},m))
+            )
+          )
+        ),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Date de paiement'),React.createElement('input',{className:'form-input',type:'date',value:form.payment_date,onChange:set('payment_date')}))
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Annuler'),
+        React.createElement('button',{className:'btn btn-primary',onClick:save,disabled:saving},saving?'Enregistrement…':'✓ Enregistrer')
+      )
+    )
+  );
+}
+
+
+function LocatairesPage({reload}){
+  const [selected,setSelected]=useState(null);
+  const [modal,setModal]=useState(false);
+  if(selected) return React.createElement(TenantDetail,{tenant:selected,onBack:()=>setSelected(null)});
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Locataires'),React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(true)},'+ Ajouter')),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+        React.createElement('div',{className:'tbl-wrap'},
+          React.createElement('table',null,
+            React.createElement('thead',null,React.createElement('tr',null,
+              React.createElement('th',null,'Locataire'),React.createElement('th',null,'Bien'),React.createElement('th',null,'Depuis'),
+              React.createElement('th',null,'Loyer total'),React.createElement('th',null,'Bail'),React.createElement('th',null,'D.G.'),React.createElement('th',null,'')
+            )),
+            React.createElement('tbody',null,
+              TENANTS.map(t=>{
+                const p=propById(t.propId);
+                return React.createElement('tr',{key:t.id,style:{cursor:'pointer'},onClick:()=>setSelected(t)},
+                  React.createElement('td',null,React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+                    React.createElement('div',{className:'avatar',style:{width:32,height:32,fontSize:11}},t.initials),
+                    React.createElement('div',null,React.createElement('div',{style:{fontWeight:600,fontSize:13}},t.name),React.createElement('div',{style:{fontSize:12,color:'#9AA0A6'}},t.email))
+                  )),
+                  React.createElement('td',{style:{fontSize:13,color:'#5F6368'}},p?p.name:'—'),
+                  React.createElement('td',{style:{fontSize:13,color:'#9AA0A6'}},t.since),
+                  React.createElement('td',null,React.createElement('strong',null,eur((p?p.loyer:0)+(p?p.charges:0)))),
+                  React.createElement('td',null,React.createElement(Bdg,{type:'b-success'},t.statusBail)),
+                  React.createElement('td',null,React.createElement(Bdg,{type:'b-info'},eur(t.dg))),
+                  React.createElement('td',null,React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:e=>{e.stopPropagation();setSelected(t);}},'Voir →'))
+                );
+              })
+            )
+          )
+        )
+      )
+    ),
+    modal&&React.createElement(AddLocataireModal,{onClose:()=>setModal(false),onSaved:reload})
+  );
+}
+
+function EditLocataireModal({tenant,onClose}){
+  const [form,setForm]=React.useState({name:tenant.name||'',email:tenant.email||'',phone:tenant.phone||'',property_id:tenant.property_id||'',since:tenant.since||'',dg:tenant.dg||0,notes:tenant.notes||'',urgence_contact:tenant.urgence_contact||''});
+  const [saving,setSaving]=React.useState(false);
+  const [err,setErr]=React.useState('');
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const save=async()=>{
+    if(!form.name){setErr('Nom obligatoire.');return;}
+    setSaving(true);
+    const {error}=await sb.from('tenants').update({name:form.name,email:form.email,phone:form.phone,property_id:form.property_id||null,since:form.since||null,dg:parseInt(form.dg)||0,notes:form.notes,urgence_contact:form.urgence_contact}).eq('id',tenant.id);
+    setSaving(false);
+    if(error){setErr('Erreur: '+error.message);return;}
+    window.location.reload();
+  };
+  return React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+    React.createElement('div',{className:'modal'},
+      React.createElement('div',{className:'modal-hd'},React.createElement('div',{className:'modal-title'},'Modifier le locataire'),React.createElement('div',{className:'modal-close',onClick:onClose},'✕')),
+      React.createElement('div',{className:'modal-bd'},
+        err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:12}},err),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Nom *'),React.createElement('input',{className:'form-input',value:form.name,onChange:set('name')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Email'),React.createElement('input',{className:'form-input',type:'email',value:form.email,onChange:set('email')}))
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Téléphone'),React.createElement('input',{className:'form-input',value:form.phone,onChange:set('phone')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Bien loué'),
+            React.createElement('select',{className:'form-input',value:form.property_id,onChange:set('property_id')},
+              React.createElement('option',{value:''},'-- Aucun --'),
+              PROPS.map(p=>React.createElement('option',{key:p.id,value:p.id},p.name))
+            )
+          )
+        ),
+        React.createElement('div',{className:'g2'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},"Date d'entrée"),React.createElement('input',{className:'form-input',type:'date',value:form.since,onChange:set('since')})),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'D.G. (€)'),React.createElement('input',{className:'form-input',type:'number',value:form.dg,onChange:set('dg')}))
+        ),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Contact urgence'),React.createElement('input',{className:'form-input',value:form.urgence_contact,onChange:set('urgence_contact')})),
+        React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Notes'),React.createElement('textarea',{className:'form-input',rows:2,value:form.notes,onChange:set('notes')}))
+      ),
+      React.createElement('div',{className:'modal-ft'},
+        React.createElement('button',{className:'btn btn-secondary',onClick:onClose},'Annuler'),
+        React.createElement('button',{className:'btn btn-primary',onClick:save,disabled:saving},saving?'Enregistrement…':'✓ Enregistrer')
+      )
+    )
+  );
+}
+
+function TenantDetail({tenant,onBack}){
+  const [deleting2,setDeleting2]=useState(false);
+  const handleDeleteTenant=async()=>{
+    if(!window.confirm('Supprimer ce locataire ?')) return;
+    setDeleting2(true);
+    await db.deleteTenant(tenant.id);
+    window.location.reload();
+  };
+  const prop=propById(tenant.propId);
+  const pays=PAYMENTS.filter(p=>p.tid===tenant.id);
+  const myTickets=TICKETS.filter(t=>t.tid===tenant.id);
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:22}},
+      React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
+      React.createElement('h1',{style:{fontSize:20,fontWeight:700}},'Fiche locataire'),
+      React.createElement('button',{className:'btn',style:{marginLeft:'auto',background:'#E74C3C',color:'#fff'},onClick:handleDeleteTenant,disabled:deleting2},deleting2?'Suppression…':'🗑 Supprimer')
+    ),
+    React.createElement('div',{className:'g2'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-body'},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:14,marginBottom:16}},
+              React.createElement('div',{className:'avatar',style:{width:52,height:52,fontSize:17}},tenant.initials),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,fontSize:17}},tenant.name),
+                React.createElement('div',{style:{fontSize:12,color:'#9AA0A6',marginTop:3}},'✉ '+tenant.email+' · 📞 '+tenant.phone)
+              )
+            ),
+            [["Bien loué",prop?prop.name:"—"],["Adresse",prop?prop.address:"—"],["Date d'entrée",tenant.since],["Statut bail",tenant.statusBail],["Contact urgence",tenant.urgence||"—"]].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},React.createElement('span',{className:'stat-label'},l),React.createElement('span',{className:'stat-val',style:{fontSize:12,textAlign:'right',maxWidth:200}},v))
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Incidents')),
+          React.createElement('div',{className:'card-body'},
+            myTickets.length===0?React.createElement('div',{style:{color:'#BDC1C6',fontSize:13}},'Aucun incident signalé'):
+            myTickets.map(t=>{const si=TICKET_STATUS[t.status]||TICKET_STATUS.nouveau;return React.createElement('div',{key:t.id,className:'ticket-card',style:{cursor:'default'}},
+              React.createElement('div',{className:'ticket-hd'},React.createElement('div',{className:'ticket-title'},t.title),React.createElement(Bdg,{type:si.cls},si.label)),
+              React.createElement('div',{className:'ticket-meta',style:{marginTop:4}},React.createElement('span',null,t.date))
+            );})
+          )
+        )
+      ),
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Historique paiements')),
+        React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+          React.createElement('table',null,
+            React.createElement('thead',null,React.createElement('tr',null,React.createElement('th',null,'Mois'),React.createElement('th',null,'Total'),React.createElement('th',null,'Statut'),React.createElement('th',null,'Date'))),
+            React.createElement('tbody',null,pays.map(p=>{const pi=PAY_INFO[p.status]||PAY_INFO.attente;return React.createElement('tr',{key:p.id},
+              React.createElement('td',{style:{fontSize:13}},p.month),React.createElement('td',null,React.createElement('strong',null,eur(p.total))),
+              React.createElement('td',null,React.createElement(Bdg,{type:pi.cls},pi.label)),React.createElement('td',{style:{fontSize:12,color:'#9AA0A6'}},p.date||'—')
+            );}))
+          )
+        ),
+        tenant.notes&&React.createElement('div',{style:{padding:'14px 22px',borderTop:'1px solid #F1F3F4',fontSize:13,color:'#5F6368',lineHeight:1.6}},tenant.notes)
+      )
+    )
+  );
+}
+
+function LoyersPage({reload}){
+  const [filter,setFilter]=useState("tous");
+  const [modal,setModal]=useState(false);
+  const list=filter==="tous"?PAYMENTS:PAYMENTS.filter(p=>p.status===filter);
+  const enc=PAYMENTS.filter(p=>p.status==="paye").reduce((a,p)=>a+p.total,0);
+  const ret=PAYMENTS.filter(p=>p.status==="retard").reduce((a,p)=>a+p.total,0);
+  const att=PAYMENTS.filter(p=>p.status==="attente").reduce((a,p)=>a+p.total,0);
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Loyers & paiements'),React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(true)},'+ Saisir paiement')),
+    React.createElement('div',{className:'kpi-grid',style:{marginBottom:20}},
+      [["Encaissé",enc,"✅"],["En attente",att,"⏳"],["En retard",ret,"⚠️"],["Total mensuel",enc+ret+att,"💶"]].map(([l,v,ic])=>
+        React.createElement('div',{key:l,className:'kpi'},React.createElement('div',{className:'kpi-label'},l),React.createElement('div',{className:'kpi-value',style:{fontSize:22}},eur(v)),React.createElement('div',{className:'kpi-icon'},ic))
+      )
+    ),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-header'},
+        React.createElement('span',{className:'card-title'},'Suivi'),
+        React.createElement('div',{className:'tabs'},
+          [["tous","Tous"],["paye","Payés"],["attente","En attente"],["retard","En retard"]].map(([k,l])=>
+            React.createElement('div',{key:k,className:'tab'+(filter===k?' active':''),onClick:()=>setFilter(k)},l)
+          )
+        )
+      ),
+      React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+        React.createElement('div',{className:'tbl-wrap'},
+          React.createElement('table',null,
+            React.createElement('thead',null,React.createElement('tr',null,
+              React.createElement('th',null,'Locataire'),React.createElement('th',null,'Bien'),React.createElement('th',null,'Période'),
+              React.createElement('th',null,'Loyer HC'),React.createElement('th',null,'Charges'),React.createElement('th',null,'Total'),
+              React.createElement('th',null,'Statut'),React.createElement('th',null,'Mode')
+            )),
+            React.createElement('tbody',null,list.map(p=>{
+              const t=tenantById(p.tid),pr=propById(p.pid),pi=PAY_INFO[p.status]||PAY_INFO.attente;
+              return React.createElement('tr',{key:p.id},
+                React.createElement('td',null,React.createElement('strong',{style:{fontSize:13}},t?t.name:'—')),
+                React.createElement('td',{style:{fontSize:13,color:'#5F6368'}},pr?pr.name:'—'),
+                React.createElement('td',{style:{fontSize:13}},p.month),
+                React.createElement('td',{style:{fontSize:13}},eur(p.loyer)),
+                React.createElement('td',{style:{fontSize:13}},eur(p.charges)),
+                React.createElement('td',null,React.createElement('strong',null,eur(p.total))),
+                React.createElement('td',null,React.createElement(Bdg,{type:pi.cls},pi.label)),
+                React.createElement('td',{style:{fontSize:12,color:'#9AA0A6'}},p.mode||'—')
+              );
+            }))
+          )
+        )
+      )
+    ),
+    modal&&React.createElement(AddPaiementModal,{onClose:()=>setModal(false),onSaved:reload})
+  );
+}
+
+function DocumentsPage(){
+  const [filter,setFilter]=useState("Tous");
+  const types=["Tous","Bail","Quittance","État des lieux","Diagnostic","Assurance","Facture"];
+  const list=filter==="Tous"?DOCS:DOCS.filter(d=>d.type===filter);
+  const docColors={"Bail":"#EAFAF1","Quittance":"#EBF5FB","État des lieux":"#FEF9E7","Diagnostic":"#FFF3E0","Assurance":"#F3E5F5","Facture":"#FCE4EC"};
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Documents'),React.createElement('button',{className:'btn btn-primary'},'+ Importer')),
+    React.createElement('div',{className:'upload-zone'},
+      React.createElement('div',{style:{fontSize:32,marginBottom:8}},'📂'),
+      React.createElement('div',{style:{fontWeight:600,color:'#3C4043',marginBottom:4}},'Glisser-déposer vos fichiers ici'),
+      React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'PDF, images, Word — Max 20 Mo')
+    ),
+    React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap',marginBottom:18}},
+      types.map(t=>React.createElement('button',{key:t,className:'btn btn-sm '+(filter===t?'btn-primary':'btn-secondary'),onClick:()=>setFilter(t)},t))
+    ),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-body'},
+        list.map(d=>{
+          const pr=propById(d.pid),tn=d.tid?tenantById(d.tid):null;
+          return React.createElement('div',{key:d.id,className:'doc-item'},
+            React.createElement('div',{className:'doc-icon',style:{background:docColors[d.type]||'#F1F3F4'}},'📄'),
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{fontWeight:600,fontSize:13}},d.name),
+              React.createElement('div',{style:{fontSize:12,color:'#9AA0A6',marginTop:2,display:'flex',alignItems:'center',gap:8}},
+                React.createElement(Bdg,{type:'b-gray'},d.type),
+                React.createElement('span',null,pr?pr.name:''),
+                tn&&React.createElement('span',null,'· '+tn.name)
+              )
+            ),
+            React.createElement('div',{style:{fontSize:12,color:'#9AA0A6',marginRight:14}},d.date),
+            React.createElement('div',{style:{fontSize:12,color:'#BDC1C6',marginRight:14}},d.size),
+            React.createElement('button',{className:'btn btn-secondary btn-sm'},'⬇ Télécharger')
+          );
+        })
+      )
+    )
+  );
+}
+
+function IncidentsPage(){
+  const [selected,setSelected]=useState(null);
+  const [modal,setModal]=useState(false);
+  if(selected) return React.createElement(TicketDetail,{ticket:selected,onBack:()=>setSelected(null)});
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Incidents & maintenance'),React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(true)},'+ Nouveau ticket')),
+    React.createElement('div',{className:'kpi-grid',style:{marginBottom:20}},
+      [["Nouveaux",TICKETS.filter(t=>t.status==="nouveau").length],["En cours",TICKETS.filter(t=>t.status==="en_cours").length],["Résolus",TICKETS.filter(t=>t.status==="resolu").length],["Total",TICKETS.length]].map(([l,v])=>
+        React.createElement('div',{key:l,className:'kpi'},React.createElement('div',{className:'kpi-label'},l),React.createElement('div',{className:'kpi-value'},v))
+      )
+    ),
+    TICKETS.map(t=>{
+      const pr=propById(t.pid),tn=tenantById(t.tid),si=TICKET_STATUS[t.status]||TICKET_STATUS.nouveau,pi=PRIO[t.prio]||PRIO.normale;
+      return React.createElement('div',{key:t.id,className:'ticket-card',onClick:()=>setSelected(t)},
+        React.createElement('div',{className:'ticket-hd'},
+          React.createElement('div',null,
+            React.createElement('div',{className:'ticket-title'},t.title),
+            React.createElement('div',{className:'ticket-meta'},React.createElement('span',null,'🏠 '+(pr?pr.name:'')),React.createElement('span',null,'👤 '+(tn?tn.name:'')),React.createElement('span',null,'📅 '+t.date))
+          ),
+          React.createElement('div',{style:{display:'flex',gap:6,flexDirection:'column',alignItems:'flex-end'}},
+            React.createElement(Bdg,{type:si.cls},si.label),
+            React.createElement(Bdg,{type:pi.cls},'Priorité '+t.prio)
+          )
+        ),
+        React.createElement('div',{style:{fontSize:13,color:'#5F6368',marginTop:8}},t.desc.slice(0,90)+(t.desc.length>90?'…':''))
+      );
+    }),
+    modal&&React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)setModal(false)}},
+      React.createElement('div',{className:'modal'},
+        React.createElement('div',{className:'modal-hd'},React.createElement('div',{className:'modal-title'},'Nouveau ticket'),React.createElement('div',{className:'modal-close',onClick:()=>setModal(false)},'✕')),
+        React.createElement('div',{className:'modal-bd'},
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Titre'),React.createElement('input',{className:'form-input',placeholder:'Description courte'})),
+          React.createElement('div',{className:'g2'},
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Bien'),React.createElement('select',{className:'form-input'},PROPS.map(p=>React.createElement('option',{key:p.id},p.name)))),
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Priorité'),React.createElement('select',{className:'form-input'},React.createElement('option',null,'normale'),React.createElement('option',null,'haute'),React.createElement('option',null,'basse')))
+          ),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Description'),React.createElement('textarea',{className:'form-input',rows:4,placeholder:'Détails…'}))
+        ),
+        React.createElement('div',{className:'modal-ft'},
+          React.createElement('button',{className:'btn btn-secondary',onClick:()=>setModal(false)},'Annuler'),
+          React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(false)},'Créer')
+        )
+      )
+    )
+  );
+}
+
+function TicketDetail({ticket,onBack}){
+  const pr=propById(ticket.pid),tn=tenantById(ticket.tid),si=TICKET_STATUS[ticket.status]||TICKET_STATUS.nouveau,pi=PRIO[ticket.prio]||PRIO.normale;
+  return React.createElement('div',null,
+    React.createElement('div',{style:{display:'flex',gap:12,marginBottom:22}},
+      React.createElement('button',{className:'btn btn-secondary',onClick:onBack},'← Retour'),
+      React.createElement('h1',{style:{fontSize:20,fontWeight:700}},'Ticket #'+ticket.id)
+    ),
+    React.createElement('div',{className:'g2'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},
+            React.createElement('span',{className:'card-title'},'Détails'),
+            React.createElement('div',{style:{display:'flex',gap:6}},React.createElement(Bdg,{type:si.cls},si.label),React.createElement(Bdg,{type:pi.cls},'Priorité '+ticket.prio))
+          ),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('div',{style:{fontWeight:600,marginBottom:8}},ticket.title),
+            React.createElement('div',{style:{fontSize:13,color:'#5F6368',lineHeight:1.6,marginBottom:14}},ticket.desc),
+            [["Bien",pr?pr.name:"—"],["Locataire",tn?tn.name:"—"],["Date",ticket.date]].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},React.createElement('span',{className:'stat-label'},l),React.createElement('span',{className:'stat-val'},v))
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Mettre à jour')),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('select',{className:'form-input',style:{marginBottom:12},defaultValue:ticket.status},
+              React.createElement('option',{value:'nouveau'},'Nouveau'),React.createElement('option',{value:'en_cours'},'En cours'),React.createElement('option',{value:'resolu'},'Résolu'),React.createElement('option',{value:'cloture'},'Clôturé')
+            ),
+            React.createElement('button',{className:'btn btn-primary',style:{width:'100%'}},'Sauvegarder')
+          )
+        )
+      ),
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Historique')),
+        React.createElement('div',{className:'card-body'},
+          ticket.log.map((h,i)=>React.createElement('div',{key:i,className:'tl-item'},
+            React.createElement('div',{className:'tl-dot',style:{background:'#EBF5FB'}},'📋'),
+            React.createElement('div',{className:'tl-body'},React.createElement('div',{className:'tl-title'},h.m),React.createElement('div',{className:'tl-sub'},h.d))
+          )),
+          React.createElement('div',{style:{display:'flex',gap:8,marginTop:12}},
+            React.createElement('input',{className:'form-input',placeholder:'Ajouter une note…',style:{flex:1}}),
+            React.createElement('button',{className:'btn btn-primary'},'Envoyer')
+          )
+        )
+      )
+    )
+  );
+}
+
+function MessageriePage(){
+  const [active,setActive]=useState(MSGS[0]);
+  const [input,setInput]=useState("");
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Messagerie')),
+    React.createElement('div',{className:'g2',style:{minHeight:480}},
+      React.createElement('div',{className:'card',style:{display:'flex',flexDirection:'column'}},
+        React.createElement('div',{className:'card-header',style:{paddingBottom:12}},React.createElement('span',{className:'card-title'},'Conversations')),
+        React.createElement('div',{style:{padding:'8px 12px'}},
+          MSGS.map(m=>React.createElement('div',{key:m.id,className:'msg-item'+(active&&active.id===m.id?' active':''),onClick:()=>setActive(m)},
+            React.createElement('div',{className:'avatar',style:{width:40,height:40,fontSize:13}},m.initials),
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+                React.createElement('div',{className:'msg-name'},m.name),
+                React.createElement('div',{style:{fontSize:11,color:'#BDC1C6'}},m.time)
+              ),
+              React.createElement('div',{className:'msg-preview'},m.preview)
+            ),
+            m.unread>0&&React.createElement('div',{style:{background:'#E74C3C',color:'#fff',fontSize:10,fontWeight:700,width:18,height:18,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},m.unread)
+          ))
+        )
+      ),
+      active?React.createElement('div',{className:'card',style:{display:'flex',flexDirection:'column'}},
+        React.createElement('div',{className:'card-header',style:{paddingBottom:12}},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+            React.createElement('div',{className:'avatar',style:{width:32,height:32,fontSize:12}},active.initials),
+            React.createElement('span',{className:'card-title'},active.name)
+          )
+        ),
+        React.createElement('div',{style:{flex:1,padding:16,display:'flex',flexDirection:'column',gap:10,minHeight:300}},
+          active.conv.map((c,i)=>React.createElement('div',{key:i,className:'bubble bubble-'+c.from},c.text,React.createElement('div',{style:{fontSize:10,opacity:.6,textAlign:'right',marginTop:3}},c.time)))
+        ),
+        React.createElement('div',{style:{padding:12,borderTop:'1px solid #F1F3F4',display:'flex',gap:8}},
+          React.createElement('input',{value:input,onChange:e=>setInput(e.target.value),placeholder:'Votre message…',className:'form-input',style:{flex:1},onKeyDown:e=>e.key==='Enter'&&setInput('')}),
+          React.createElement('button',{className:'btn btn-primary',onClick:()=>setInput('')},'Envoyer')
+        )
+      ):React.createElement('div',{className:'card',style:{display:'flex',alignItems:'center',justifyContent:'center',minHeight:300}},
+        React.createElement('div',{style:{color:'#BDC1C6',fontSize:14}},'Sélectionnez une conversation')
+      )
+    )
+  );
+}
+
+function EspaceLocatairePage(){
+  const tenant=TENANTS[0]||null;
+  if(!tenant) return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Espace locataire')),
+    React.createElement('div',{className:'card'},React.createElement('div',{className:'card-body',style:{textAlign:'center',padding:40}},
+      React.createElement('div',{style:{fontSize:40,marginBottom:12}},'🔑'),
+      React.createElement('div',{style:{fontWeight:600,marginBottom:8}},'Aucun locataire enregistré'),
+      React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Ajoutez d\'abord un locataire pour accéder à l\'espace locataire.')
+    ))
+  );
+  const prop=propById(tenant.propId);
+  const pays=PAYMENTS.filter(p=>p.tid===tenant.id);
+  const myTickets=TICKETS.filter(t=>t.tid===tenant.id);
+  const myDocs=DOCS.filter(d=>d.tid===tenant.id);
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Espace locataire'),React.createElement(Bdg,{type:'b-info'},'Démo — Sophie Martin')),
+    React.createElement('div',{style:{background:'linear-gradient(135deg,#1B4F72,#2980B9)',borderRadius:16,padding:24,marginBottom:22,color:'#fff'}},
+      React.createElement('div',{style:{fontSize:20,fontWeight:700,marginBottom:4}},'Bonjour Sophie 👋'),
+      React.createElement('div',{style:{opacity:.8,fontSize:13}},prop?prop.name+' · '+prop.address:''),
+      React.createElement('div',{style:{display:'flex',gap:28,marginTop:16,flexWrap:'wrap'}},
+        [["Loyer mensuel",eur((prop?prop.loyer:0)+(prop?prop.charges:0))],["Depuis",tenant.since],["Statut","Actif ✅"]].map(([l,v])=>
+          React.createElement('div',{key:l},
+            React.createElement('div',{style:{opacity:.65,fontSize:11,textTransform:'uppercase',letterSpacing:'.5px'}},l),
+            React.createElement('div',{style:{fontWeight:700,fontSize:16,marginTop:2}},v)
+          )
+        )
+      )
+    ),
+    React.createElement('div',{className:'g2'},
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Mes paiements')),
+          React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+            React.createElement('table',null,
+              React.createElement('thead',null,React.createElement('tr',null,React.createElement('th',null,'Période'),React.createElement('th',null,'Montant'),React.createElement('th',null,'Statut'))),
+              React.createElement('tbody',null,pays.map(p=>{const pi=PAY_INFO[p.status]||PAY_INFO.attente;return React.createElement('tr',{key:p.id},
+                React.createElement('td',{style:{fontSize:13}},p.month),React.createElement('td',null,React.createElement('strong',null,eur(p.total))),React.createElement('td',null,React.createElement(Bdg,{type:pi.cls},pi.label))
+              );}))
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Mes documents')),
+          React.createElement('div',{className:'card-body'},
+            myDocs.map(d=>React.createElement('div',{key:d.id,className:'doc-item',style:{padding:'10px 12px'}},
+              React.createElement('div',{className:'doc-icon',style:{background:'#EAFAF1'}},'📄'),
+              React.createElement('div',{style:{flex:1}},React.createElement('div',{style:{fontWeight:600,fontSize:13}},d.name),React.createElement('div',{style:{fontSize:12,color:'#9AA0A6'}},d.date)),
+              React.createElement('button',{className:'btn btn-secondary btn-sm'},'⬇')
+            ))
+          )
+        )
+      ),
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Mes demandes')),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('button',{className:'btn btn-primary',style:{width:'100%',marginBottom:14}},'+ Signaler un incident'),
+            myTickets.map(t=>{const si=TICKET_STATUS[t.status]||TICKET_STATUS.nouveau;return React.createElement('div',{key:t.id,className:'ticket-card',style:{cursor:'default'}},
+              React.createElement('div',{className:'ticket-hd'},React.createElement('div',{className:'ticket-title'},t.title),React.createElement(Bdg,{type:si.cls},si.label)),
+              React.createElement('div',{className:'ticket-meta',style:{marginTop:4}},React.createElement('span',null,t.date))
+            );})
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Message au propriétaire')),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('textarea',{className:'form-input',rows:4,placeholder:'Votre message…',style:{marginBottom:10}}),
+            React.createElement('button',{className:'btn btn-primary',style:{width:'100%'}},'Envoyer')
+          )
+        )
+      )
+    )
+  );
+}
+
+function ProfilPage(){
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Profil & paramètres')),
+    React.createElement('div',{className:'g2'},
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Informations')),
+        React.createElement('div',{className:'card-body'},
+          React.createElement('div',{style:{display:'flex',alignItems:'center',gap:14,marginBottom:20}},
+            React.createElement('div',{className:'avatar',style:{width:56,height:56,fontSize:20}},'JP'),
+            React.createElement('div',null,React.createElement('div',{style:{fontWeight:700,fontSize:17}},'Jean-Pierre Fontaine'),React.createElement('div',{style:{fontSize:12,color:'#9AA0A6'}},'Propriétaire · Administrateur'))
+          ),
+          [["Prénom","Jean-Pierre"],["Nom","Fontaine"],["Email","jp.fontaine@email.fr"],["Téléphone","06 12 34 56 78"]].map(([l,v])=>
+            React.createElement('div',{key:l,className:'form-group'},React.createElement('label',{className:'form-label'},l),React.createElement('input',{className:'form-input',defaultValue:v}))
+          ),
+          React.createElement('button',{className:'btn btn-primary'},'Sauvegarder')
+        )
+      ),
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Sécurité')),
+          React.createElement('div',{className:'card-body'},
+            ["Mot de passe actuel","Nouveau mot de passe","Confirmation"].map(l=>
+              React.createElement('div',{key:l,className:'form-group'},React.createElement('label',{className:'form-label'},l),React.createElement('input',{className:'form-input',type:'password',placeholder:'••••••••'}))
+            ),
+            React.createElement('button',{className:'btn btn-primary'},'Changer')
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Notifications')),
+          React.createElement('div',{className:'card-body'},
+            [["Loyer en retard","Activé"],["Nouveau message","Activé"],["Expiration bail","Activé"],["Nouveau ticket","Activé"]].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},React.createElement('span',{className:'stat-label'},l),React.createElement(Bdg,{type:'b-success'},v))
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+/* ── QUITTANCE PAGE ── */
+function QuittancePage(){
+  const [selTenant,setSelTenant]=useState(null);
+  const [selPay,setSelPay]=useState(null);
+  const [showPreview,setShowPreview]=useState(false);
+
+  // Pick first tenant if none selected yet and TENANTS loaded
+  const tenant = selTenant || (TENANTS.length>0 ? TENANTS[0] : null);
+  const prop = tenant ? propById(tenant.propId) : null;
+  const pays = tenant ? PAYMENTS.filter(p=>p.tid===tenant.id&&p.status==="paye") : [];
+  const today=new Date().toLocaleDateString('fr-FR');
+
+  // Empty state
+  if(TENANTS.length===0) return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Génération de quittances')),
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-body',style:{textAlign:'center',padding:40}},
+        React.createElement('div',{style:{fontSize:40,marginBottom:12}},'📄'),
+        React.createElement('div',{style:{fontWeight:600,marginBottom:8}},'Aucun locataire enregistré'),
+        React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Ajoutez d\'abord des locataires dans l\'onglet "Locataires" pour générer des quittances.')
+      )
+    )
+  );
+
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Génération de quittances')),
+    React.createElement('div',{className:'g2'},
+      /* Formulaire */
+      React.createElement('div',null,
+        React.createElement('div',{className:'card',style:{marginBottom:16}},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Paramètres')),
+          React.createElement('div',{className:'card-body'},
+            React.createElement('div',{className:'form-group'},
+              React.createElement('label',{className:'form-label'},'Locataire'),
+              React.createElement('select',{className:'form-input',onChange:e=>setSelTenant(TENANTS.find(t=>t.id===parseInt(e.target.value))||TENANTS[0]||null),value:tenant?.id},
+                TENANTS.map(t=>React.createElement('option',{key:t.id,value:t.id},t.name))
+              )
+            ),
+            React.createElement('div',{className:'form-group'},
+              React.createElement('label',{className:'form-label'},'Période'),
+              React.createElement('select',{className:'form-input',onChange:e=>setSelPay(pays.find(p=>p.id===parseInt(e.target.value))||null)},
+                React.createElement('option',{value:''},'-- Choisir une période --'),
+                pays.map(p=>React.createElement('option',{key:p.id,value:p.id},p.month+' — '+eur(p.total)))
+              )
+            ),
+            React.createElement('div',{className:'form-group'},
+              React.createElement('label',{className:'form-label'},'Bien concerné'),
+              React.createElement('input',{className:'form-input',readOnly:true,value:prop?prop.name+' — '+prop.address:'',style:{background:'#F8F9FA',color:'#5F6368'}})
+            ),
+            React.createElement('div',{className:'form-group'},
+              React.createElement('label',{className:'form-label'},'Date d\'émission'),
+              React.createElement('input',{className:'form-input',type:'date',defaultValue:new Date().toISOString().split('T')[0]})
+            ),
+            React.createElement('div',{style:{display:'flex',gap:10,marginTop:8}},
+              React.createElement('button',{className:'btn btn-primary',style:{flex:1},onClick:()=>setShowPreview(true)},'👁 Aperçu quittance'),
+              React.createElement('button',{className:'btn btn-secondary',style:{flex:1}},'⬇ Télécharger PDF')
+            )
+          )
+        ),
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Historique quittances')),
+          React.createElement('div',{className:'card-body',style:{padding:'6px 0 0'}},
+            React.createElement('table',null,
+              React.createElement('thead',null,React.createElement('tr',null,
+                React.createElement('th',null,'Locataire'),React.createElement('th',null,'Période'),React.createElement('th',null,'Montant'),React.createElement('th',null,'')
+              )),
+              React.createElement('tbody',null,
+                PAYMENTS.filter(p=>p.status==="paye").map(p=>{
+                  const t=tenantById(p.tid);
+                  return React.createElement('tr',{key:p.id},
+                    React.createElement('td',{style:{fontSize:13}},t?t.name:'—'),
+                    React.createElement('td',{style:{fontSize:13}},p.month),
+                    React.createElement('td',null,React.createElement('strong',null,eur(p.total))),
+                    React.createElement('td',null,React.createElement('button',{className:'btn btn-secondary btn-sm',onClick:()=>{setSelTenant(TENANTS.find(t2=>t2.id===p.tid)||TENANTS[0]);setShowPreview(true);}},'📄 Voir'))
+                  );
+                })
+              )
+            )
+          )
+        )
+      ),
+      /* Aperçu live */
+      React.createElement('div',null,
+        React.createElement('div',{style:{position:'sticky',top:80}},
+          React.createElement('div',{className:'card-title',style:{marginBottom:12,paddingLeft:4}},'APERÇU'),
+          React.createElement('div',{className:'quittance-preview'},
+            React.createElement('div',{className:'quittance-logo'},'Immo·Pro'),
+            React.createElement('div',{style:{fontSize:11,color:'#9AA0A6',marginBottom:16}},'Gestion locative · Jean-Pierre Fontaine'),
+            React.createElement('div',{style:{textAlign:'center',fontSize:18,fontWeight:700,color:'#1B4F72',marginBottom:4}},'QUITTANCE DE LOYER'),
+            React.createElement('div',{style:{textAlign:'center',fontSize:13,color:'#5F6368',marginBottom:8}},'Période : '+(selPay?selPay.month:'— sélectionner une période —')),
+            React.createElement('hr',{className:'quittance-divider'}),
+            React.createElement('div',{className:'g2',style:{gap:16,marginBottom:16}},
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Bailleur'),
+                React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Jean-Pierre Fontaine'),
+                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'jp.fontaine@email.fr'),
+                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'06 12 34 56 78')
+              ),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Locataire'),
+                React.createElement('div',{style:{fontSize:13,fontWeight:600}},tenant?.name||""),
+                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},prop?prop.address:''),
+                React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},tenant?.email||"")
+              )
+            ),
+            React.createElement('table',{className:'quittance-table'},
+              React.createElement('tbody',null,
+                React.createElement('tr',null,React.createElement('td',null,'Loyer hors charges'),React.createElement('td',{style:{textAlign:'right'}},selPay?eur(selPay.loyer):eur(prop?prop.loyer:0))),
+                React.createElement('tr',null,React.createElement('td',null,'Charges'),React.createElement('td',{style:{textAlign:'right'}},selPay?eur(selPay.charges):eur(prop?prop.charges:0))),
+                React.createElement('tr',null,React.createElement('td',null,'TOTAL PAYÉ'),React.createElement('td',{style:{textAlign:'right',color:'#1B4F72'}},selPay?eur(selPay.total):eur(prop?(prop.loyer+prop.charges):0)))
+              )
+            ),
+            React.createElement('hr',{className:'quittance-divider'}),
+            React.createElement('div',{style:{fontSize:12,color:'#5F6368',lineHeight:1.7,marginBottom:12}},
+              'Je soussigné Jean-Pierre Fontaine, propriétaire du logement désigné ci-dessus, déclare avoir reçu de ',
+              React.createElement('strong',null,tenant?.name||""),
+              ' la somme de ',
+              React.createElement('strong',null,selPay?eur(selPay.total):eur(prop?(prop.loyer+prop.charges):0)),
+              ' au titre du loyer et des charges du mois indiqué ci-dessus, et lui en donne quittance, sous réserve de tous mes droits.'
+            ),
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}},
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontSize:11,color:'#9AA0A6'}},'Émis le '+today),
+                React.createElement('div',{style:{fontSize:11,color:'#9AA0A6',marginTop:24}},'Signature du bailleur'),
+                React.createElement('div',{style:{borderTop:'1px solid #DADCE0',width:160,marginTop:8}})
+              ),
+              React.createElement('div',{className:'quittance-stamp'},'PAYÉ ✓')
+            )
+          )
+        )
+      )
+    ),
+    showPreview&&React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)setShowPreview(false)}},
+      React.createElement('div',{className:'modal',style:{maxWidth:680}},
+        React.createElement('div',{className:'modal-hd'},React.createElement('div',{className:'modal-title'},'Quittance — '+(selPay?selPay.month:'')),React.createElement('div',{className:'modal-close',onClick:()=>setShowPreview(false)},'✕')),
+        React.createElement('div',{className:'modal-bd'},
+          React.createElement('div',{className:'quittance-preview'},
+            React.createElement('div',{className:'quittance-logo'},'Immo·Pro'),
+            React.createElement('div',{style:{fontSize:11,color:'#9AA0A6',marginBottom:16}},'Gestion locative · Jean-Pierre Fontaine'),
+            React.createElement('div',{style:{textAlign:'center',fontSize:18,fontWeight:700,color:'#1B4F72',marginBottom:4}},'QUITTANCE DE LOYER'),
+            React.createElement('div',{style:{textAlign:'center',fontSize:13,color:'#5F6368',marginBottom:8}},'Période : '+(selPay?selPay.month:'—')),
+            React.createElement('hr',{className:'quittance-divider'}),
+            React.createElement('div',{className:'g2',style:{gap:16,marginBottom:16}},
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Bailleur'),React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Jean-Pierre Fontaine'),React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'jp.fontaine@email.fr')),
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:11,fontWeight:600,color:'#9AA0A6',textTransform:'uppercase',letterSpacing:'.5px',marginBottom:4}},'Locataire'),React.createElement('div',{style:{fontSize:13,fontWeight:600}},tenant?.name||""),React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},prop?prop.address:''))
+            ),
+            React.createElement('table',{className:'quittance-table'},React.createElement('tbody',null,
+              React.createElement('tr',null,React.createElement('td',null,'Loyer hors charges'),React.createElement('td',{style:{textAlign:'right'}},selPay?eur(selPay.loyer):eur(prop?prop.loyer:0))),
+              React.createElement('tr',null,React.createElement('td',null,'Charges'),React.createElement('td',{style:{textAlign:'right'}},selPay?eur(selPay.charges):eur(prop?prop.charges:0))),
+              React.createElement('tr',null,React.createElement('td',null,'TOTAL'),React.createElement('td',{style:{textAlign:'right',color:'#1B4F72'}},selPay?eur(selPay.total):eur(prop?(prop.loyer+prop.charges):0)))
+            )),
+            React.createElement('hr',{className:'quittance-divider'}),
+            React.createElement('div',{style:{fontSize:12,color:'#5F6368',lineHeight:1.7,marginBottom:16}},'Je soussigné Jean-Pierre Fontaine, propriétaire du logement désigné ci-dessus, déclare avoir reçu de ',React.createElement('strong',null,tenant?.name||""),' la somme de ',React.createElement('strong',null,selPay?eur(selPay.total):'—'),' au titre du loyer et des charges, et lui en donne quittance.'),
+            React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-end'}},
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:11,color:'#9AA0A6'}},'Émis le '+today),React.createElement('div',{style:{marginTop:24,borderTop:'1px solid #DADCE0',width:160,paddingTop:4,fontSize:11,color:'#9AA0A6'}},'Signature bailleur')),
+              React.createElement('div',{className:'quittance-stamp'},'PAYÉ ✓')
+            )
+          )
+        ),
+        React.createElement('div',{className:'modal-ft'},
+          React.createElement('button',{className:'btn btn-secondary',onClick:()=>setShowPreview(false)},'Fermer'),
+          React.createElement('button',{className:'btn btn-primary'},'⬇ Télécharger PDF')
+        )
+      )
+    )
+  );
+}
+
+/* ── CALENDAR PAGE ── */
+function CalendarPage(){
+  const [current,setCurrent]=useState(new Date(2025,2,1));
+  const [selDay,setSelDay]=useState(null);
+
+  const year=current.getFullYear();
+  const month=current.getMonth();
+  const monthNames=['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const dayNames=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  const firstDay=new Date(year,month,1);
+  const lastDay=new Date(year,month+1,0);
+  const startDow=(firstDay.getDay()+6)%7;
+
+  // Build events map
+  const events={};
+  const addEvent=(dateStr,ev)=>{if(!events[dateStr])events[dateStr]=[];events[dateStr].push(ev);};
+
+  // Loyers (1st of each month)
+  TENANTS.forEach(t=>{
+    const p=propById(t.propId);
+    if(!p)return;
+    const key=year+'-'+String(month+1).padStart(2,'0')+'-01';
+    const pay=PAYMENTS.find(py=>py.tid===t.id&&py.month.includes(monthNames[month]));
+    addEvent(key,{label:p.name.split(' ')[0]+' — Loyer',cls:'cal-event-loyer',retard:pay&&pay.status==='retard'});
+  });
+
+  // Bail expirations
+  const bailEvents=[
+    {date:'2025-09-01',label:'Bail Sophie Martin — Éch.',cls:'cal-event-bail'},
+    {date:'2025-07-15',label:'Révision loyer Vincennes',cls:'cal-event-bail'},
+  ];
+  bailEvents.forEach(e=>{const d=new Date(e.date);if(d.getFullYear()===year&&d.getMonth()===month){const k=e.date;addEvent(k,{label:e.label,cls:e.cls});}});
+
+  // Assurances
+  ASSURANCES.forEach(a=>{
+    const d=new Date(a.fin);
+    if(d.getFullYear()===year&&d.getMonth()===month){
+      const k=a.fin;
+      addEvent(k,{label:'Assur. '+a.name.split(' ').slice(0,2).join(' '),cls:'cal-event-assurance'});
+    }
+  });
+
+  // Build cells
+  const cells=[];
+  for(let i=0;i<startDow;i++) cells.push({day:null,date:null,prev:true});
+  for(let d=1;d<=lastDay.getDate();d++){
+    const dateStr=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    cells.push({day:d,date:dateStr,prev:false});
+  }
+  while(cells.length%7!==0) cells.push({day:null,date:null,next:true});
+
+  const todayStr=new Date().toISOString().split('T')[0];
+
+  // Upcoming events list
+  const upcoming=[];
+  Object.keys(events).sort().forEach(k=>{
+    events[k].forEach(ev=>upcoming.push({date:k,label:ev.label,cls:ev.cls}));
+  });
+
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Calendrier des échéances')),
+    React.createElement('div',{className:'g2',style:{alignItems:'start'}},
+      /* Calendar */
+      React.createElement('div',{style:{gridColumn:'1/-1'}},
+        React.createElement('div',{className:'card'},
+          React.createElement('div',{className:'card-body'},
+            React.createElement('div',{className:'cal-nav'},
+              React.createElement('div',{className:'cal-nav-btn',onClick:()=>setCurrent(new Date(year,month-1,1))},'‹'),
+              React.createElement('div',{className:'cal-month'},monthNames[month]+' '+year),
+              React.createElement('div',{className:'cal-nav-btn',onClick:()=>setCurrent(new Date(year,month+1,1))},'›')
+            ),
+            React.createElement('div',{className:'cal-hd'},dayNames.map(d=>React.createElement('div',{key:d,className:'cal-day-name'},d))),
+            React.createElement('div',{className:'cal-grid'},
+              cells.map((c,i)=>React.createElement('div',{key:i,className:'cal-cell'+(c.date===todayStr?' today':'')+(c.prev||c.next?' other-month':''),onClick:()=>c.date&&setSelDay(c.date)},
+                c.day&&React.createElement('div',{className:'cal-date'+(c.date===todayStr?' today-num':'')},c.day),
+                c.date&&events[c.date]&&events[c.date].slice(0,2).map((ev,j)=>
+                  React.createElement('div',{key:j,className:'cal-event '+ev.cls},ev.label)
+                ),
+                c.date&&events[c.date]&&events[c.date].length>2&&React.createElement('div',{style:{fontSize:10,color:'#9AA0A6',paddingLeft:4}},'+'+( events[c.date].length-2))
+              ))
+            )
+          )
+        )
+      )
+    ),
+    /* Legend + upcoming */
+    React.createElement('div',{className:'g2',style:{marginTop:20}},
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Légende')),
+        React.createElement('div',{className:'card-body'},
+          [['cal-event-loyer','💶','Échéance loyer'],['cal-event-bail','📋','Bail / révision'],['cal-event-assurance','🛡','Assurance'],['cal-event-retard','⚠️','Retard']].map(([cls,ic,lb])=>
+            React.createElement('div',{key:lb,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}},
+              React.createElement('div',{className:'cal-event '+cls,style:{fontSize:11,padding:'3px 8px'}},ic+' '+lb)
+            )
+          )
+        )
+      ),
+      React.createElement('div',{className:'card'},
+        React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Échéances du mois')),
+        React.createElement('div',{className:'card-body'},
+          upcoming.length===0?React.createElement('div',{style:{color:'#BDC1C6',fontSize:13}},'Aucune échéance ce mois'):
+          upcoming.map((ev,i)=>React.createElement('div',{key:i,className:'event-list-item'},
+            React.createElement('div',{className:'event-dot',style:{background:ev.cls.includes('loyer')?'#27AE60':ev.cls.includes('bail')?'#1B4F72':ev.cls.includes('assurance')?'#F39C12':'#E74C3C'}}),
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{fontSize:13,fontWeight:600}},ev.label),
+              React.createElement('div',{style:{fontSize:11,color:'#9AA0A6'}},new Date(ev.date).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}))
+            )
+          ))
+        )
+      )
+    )
+  );
+}
+
+/* ── ASSURANCES PAGE ── */
+function AssurancesPage(){
+  const [selected,setSelected]=useState(null);
+  const [modal,setModal]=useState(false);
+
+  const statusInfo2={
+    valide:{label:'Valide',cls:'b-success',color:'#27AE60'},
+    expire_bientot:{label:'Expire bientôt',cls:'b-warn',color:'#F39C12'},
+    expire:{label:'Expirée',cls:'b-danger',color:'#E74C3C'},
+  };
+
+  const daysLeft=fin=>{
+    const d=Math.round((new Date(fin)-new Date())/(1000*60*60*24));
+    return d;
+  };
+  const pct=fin=>{
+    const a=ASSURANCES.find(a=>a.fin===fin);
+    if(!a)return 0;
+    const total=(new Date(a.fin)-new Date(a.debut))/(1000*60*60*24);
+    const elapsed=(new Date()-new Date(a.debut))/(1000*60*60*24);
+    return Math.min(100,Math.max(0,Math.round(elapsed/total*100)));
+  };
+
+  const valides=ASSURANCES.filter(a=>a.statut==='valide').length;
+  const expBientot=ASSURANCES.filter(a=>a.statut==='expire_bientot').length;
+  const expires=ASSURANCES.filter(a=>a.statut==='expire').length;
+  const totalPrimes=ASSURANCES.reduce((s,a)=>s+a.prime,0);
+
+  return React.createElement('div',null,
+    React.createElement('div',{className:'page-hd'},React.createElement('h1',null,'Assurances habitation'),React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(true)},'+ Ajouter')),
+
+    React.createElement('div',{className:'kpi-grid',style:{marginBottom:20}},
+      [{label:'Valides',val:valides,icon:'✅'},{label:'Expire bientôt',val:expBientot,icon:'⚠️'},{label:'Expirées',val:expires,icon:'🔴'},{label:'Total primes/an',val:eur(totalPrimes),icon:'💶'}].map(k=>
+        React.createElement('div',{key:k.label,className:'kpi'},React.createElement('div',{className:'kpi-label'},k.label),React.createElement('div',{className:'kpi-value',style:{fontSize:k.val===expires&&expires>0?22:26,color:k.label==='Expirées'&&expires>0?'#E74C3C':k.label==='Expire bientôt'&&expBientot>0?'#F39C12':'#202124'}},k.val),React.createElement('div',{className:'kpi-icon'},k.icon))
+      )
+    ),
+
+    /* Alertes */
+    expBientot>0&&React.createElement('div',{style:{marginBottom:16}},
+      ASSURANCES.filter(a=>a.statut==='expire_bientot').map(a=>React.createElement('div',{key:a.id,className:'alert-item alert-warn'},
+        React.createElement('span',{style:{fontSize:17}},'⚠️'),
+        React.createElement('div',{style:{flex:1}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Assurance à renouveler — '+a.name),
+          React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'Expire le '+new Date(a.fin).toLocaleDateString('fr-FR')+' ('+daysLeft(a.fin)+' jours) — '+a.compagnie)
+        ),
+        React.createElement('button',{className:'btn btn-sm btn-secondary'},'Renouveler')
+      ))
+    ),
+    expires>0&&React.createElement('div',{style:{marginBottom:16}},
+      ASSURANCES.filter(a=>a.statut==='expire').map(a=>React.createElement('div',{key:a.id,className:'alert-item alert-danger'},
+        React.createElement('span',{style:{fontSize:17}},'🔴'),
+        React.createElement('div',{style:{flex:1}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:600}},'Assurance EXPIRÉE — '+a.name),
+          React.createElement('div',{style:{fontSize:12,color:'#5F6368'}},'Expirée depuis le '+new Date(a.fin).toLocaleDateString('fr-FR')+' — Action requise !')
+        ),
+        React.createElement('button',{className:'btn btn-sm btn-danger'},'Renouveler')
+      ))
+    ),
+
+    /* Liste assurances */
+    React.createElement('div',{className:'card'},
+      React.createElement('div',{className:'card-header'},React.createElement('span',{className:'card-title'},'Contrats d\'assurance')),
+      React.createElement('div',{className:'card-body'},
+        ASSURANCES.map(a=>{
+          const pr=propById(a.propId),tn=a.tenantId?tenantById(a.tenantId):null;
+          const si=statusInfo2[a.statut]||statusInfo2.valide;
+          const dl=daysLeft(a.fin);
+          const pc=pct(a.fin);
+          const barColor=a.statut==='expire'?'#E74C3C':a.statut==='expire_bientot'?'#F39C12':'#27AE60';
+          return React.createElement('div',{key:a.id,className:'assur-card',onClick:()=>setSelected(a)},
+            React.createElement('div',{className:'assur-icon',style:{background:a.statut==='valide'?'#EAFAF1':a.statut==='expire_bientot'?'#FEF9E7':'#FDEDEC'}},'🛡'),
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
+                React.createElement('div',{style:{fontWeight:700,fontSize:14}},a.name),
+                React.createElement(Bdg,{type:si.cls},si.label)
+              ),
+              React.createElement('div',{style:{fontSize:12,color:'#5F6368',marginBottom:4}},
+                a.compagnie+' · '+a.type+' · '+(tn?tn.name:pr?pr.name:'')
+              ),
+              React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:11,color:'#9AA0A6',marginBottom:6}},
+                React.createElement('span',null,'Fin : '+new Date(a.fin).toLocaleDateString('fr-FR')),
+                React.createElement('span',null,dl>0?(dl+' jours restants'):'Expiré'),
+                React.createElement('span',null,eur(a.prime)+'/an')
+              ),
+              React.createElement('div',{className:'assur-progress'},
+                React.createElement('div',{className:'assur-progress-bar',style:{width:pc+'%',background:barColor}})
+              )
+            )
+          );
+        })
+      )
+    ),
+
+    /* Modal detail */
+    selected&&React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)setSelected(null)}},
+      React.createElement('div',{className:'modal'},
+        React.createElement('div',{className:'modal-hd'},React.createElement('div',{className:'modal-title'},selected.name),React.createElement('div',{className:'modal-close',onClick:()=>setSelected(null)},'✕')),
+        React.createElement('div',{className:'modal-bd'},
+          React.createElement(Bdg,{type:(statusInfo2[selected.statut]||statusInfo2.valide).cls},(statusInfo2[selected.statut]||statusInfo2.valide).label),
+          React.createElement('div',{style:{marginTop:16}},
+            [['Compagnie',selected.compagnie],['Type',selected.type],['N° contrat',selected.numContrat],['Début',new Date(selected.debut).toLocaleDateString('fr-FR')],['Fin',new Date(selected.fin).toLocaleDateString('fr-FR')],['Prime annuelle',eur(selected.prime)],['Contact',selected.contact],['Bien',propById(selected.propId)?propById(selected.propId).name:'—'],['Locataire',selected.tenantId?tenantById(selected.tenantId).name:'Propriétaire']].map(([l,v])=>
+              React.createElement('div',{key:l,className:'stat-row'},React.createElement('span',{className:'stat-label'},l),React.createElement('span',{className:'stat-val'},v))
+            )
+          )
+        ),
+        React.createElement('div',{className:'modal-ft'},
+          React.createElement('button',{className:'btn btn-secondary',onClick:()=>setSelected(null)},'Fermer'),
+          React.createElement('button',{className:'btn btn-primary'},'✏️ Modifier')
+        )
+      )
+    ),
+
+    /* Modal ajout */
+    modal&&React.createElement('div',{className:'overlay',onClick:e=>{if(e.target===e.currentTarget)setModal(false)}},
+      React.createElement('div',{className:'modal'},
+        React.createElement('div',{className:'modal-hd'},React.createElement('div',{className:'modal-title'},'Ajouter une assurance'),React.createElement('div',{className:'modal-close',onClick:()=>setModal(false)},'✕')),
+        React.createElement('div',{className:'modal-bd'},
+          React.createElement('div',{className:'g2'},
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Nom / libellé'),React.createElement('input',{className:'form-input',placeholder:'Ex: MRH Dupont'})),
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Compagnie'),React.createElement('input',{className:'form-input',placeholder:'Ex: AXA, Allianz…'}))
+          ),
+          React.createElement('div',{className:'g2'},
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Type'),React.createElement('select',{className:'form-input'},React.createElement('option',null,'MRH locataire'),React.createElement('option',null,'PNO propriétaire'),React.createElement('option',null,'GLI'))),
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Bien concerné'),React.createElement('select',{className:'form-input'},PROPS.map(p=>React.createElement('option',{key:p.id},p.name))))
+          ),
+          React.createElement('div',{className:'g2'},
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Date début'),React.createElement('input',{className:'form-input',type:'date'})),
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Date fin / renouvellement'),React.createElement('input',{className:'form-input',type:'date'}))
+          ),
+          React.createElement('div',{className:'g2'},
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Prime annuelle (€)'),React.createElement('input',{className:'form-input',type:'number',placeholder:'0'})),
+            React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'N° contrat'),React.createElement('input',{className:'form-input',placeholder:'Ex: AXA-2025-XXXXX'}))
+          ),
+          React.createElement('div',{className:'form-group'},React.createElement('label',{className:'form-label'},'Contact assureur'),React.createElement('input',{className:'form-input',placeholder:'Téléphone ou email'}))
+        ),
+        React.createElement('div',{className:'modal-ft'},
+          React.createElement('button',{className:'btn btn-secondary',onClick:()=>setModal(false)},'Annuler'),
+          React.createElement('button',{className:'btn btn-primary',onClick:()=>setModal(false)},'Enregistrer')
+        )
+      )
+    )
+  );
+}
+
+const NAV=[
+  {key:"dashboard",label:"Tableau de bord",icon:"📊",section:"Principal"},
+  {key:"biens",label:"Mes biens",icon:"🏢",section:"Gestion"},
+  {key:"locataires",label:"Locataires",icon:"👥",section:"Gestion"},
+  {key:"loyers",label:"Loyers & paiements",icon:"💶",section:"Gestion"},
+  {key:"documents",label:"Documents",icon:"📁",section:"Gestion"},
+  {key:"incidents",label:"Incidents",icon:"🔧",badge:2,section:"Suivi"},
+  {key:"messagerie",label:"Messagerie",icon:"💬",badge:2,section:"Suivi"},
+  {key:"quittances",label:"Quittances",icon:"📄",section:"Outils"},
+  {key:"calendrier",label:"Calendrier",icon:"📅",section:"Outils"},
+  {key:"assurances",label:"Assurances",icon:"🛡",badge:ASSURANCES.filter(a=>a.statut!=='valide').length,section:"Outils"},
+  {key:"locataire",label:"Espace locataire",icon:"🔑",section:"Portails"},
+  {key:"profil",label:"Paramètres",icon:"⚙️",section:"Compte"},
+];
+const SECTIONS=[...new Set(NAV.map(n=>n.section))];
+const MOB_NAV=[{key:"dashboard",icon:"📊",label:"Accueil"},{key:"biens",icon:"🏢",label:"Biens"},{key:"loyers",icon:"💶",label:"Loyers"},{key:"incidents",icon:"🔧",label:"Incidents"},{key:"profil",icon:"⚙️",label:"Profil"}];
+
+function App(){
+  const [page,setPage]=useState("dashboard");
+  const [open,setOpen]=useState(false);
+  const [authed,setAuthed]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const [dataReady,setDataReady]=useState(false);
+  const [refresh,setRefresh]=useState(0);
+  const [userEmail,setUserEmail]=useState('');
+
+  // Check session on mount
+  useEffect(()=>{
+    sb.auth.getSession().then(({data:{session}})=>{
+      if(session){
+        setAuthed(true);
+        setUserEmail(session.user?.email||'');
+        loadAllData().then(()=>{setDataReady(true);setLoading(false);});
+      } else {
+        setLoading(false);
+      }
+    });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,session)=>{
+      if(session&&!authed){
+        setAuthed(true);
+        setUserEmail(session.user?.email||'');
+        loadAllData().then(()=>{setDataReady(true);});
+      } else if(!session) {
+        setAuthed(false); setDataReady(false); setUserEmail('');
+      }
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  const go=k=>{setPage(k);setOpen(false);};
+  const reload=()=>{ loadAllData().then(()=>setRefresh(r=>r+1)); };
+  const signOut=()=>{ sb.auth.signOut(); };
+
+  if(loading) return React.createElement(LoadingScreen,null);
+  if(!authed) return React.createElement(AuthGate,{onAuth:()=>{ loadAllData().then(()=>{setDataReady(true);setAuthed(true);}); }});
+  if(!dataReady) return React.createElement(LoadingScreen,null);
+
+  const pages={
+    dashboard:React.createElement(Dashboard,{key:'db'+refresh,onNav:go,reload}),
+    biens:React.createElement(BiensPage,{key:'bi'+refresh,reload}),
+    locataires:React.createElement(LocatairesPage,{key:'lo'+refresh,reload}),
+    loyers:React.createElement(LoyersPage,{key:'ly'+refresh,reload}),
+    documents:React.createElement(DocumentsPage,{key:'do'+refresh,reload}),
+    incidents:React.createElement(IncidentsPage,{key:'in'+refresh,reload}),
+    messagerie:React.createElement(MessageriePage,{key:'me'+refresh}),
+    quittances:React.createElement(QuittancePage,{key:'qu'+refresh}),
+    calendrier:React.createElement(CalendarPage,{key:'ca'+refresh}),
+    assurances:React.createElement(AssurancesPage,{key:'as'+refresh,reload}),
+    locataire:React.createElement(EspaceLocatairePage,{key:'el'+refresh}),
+    profil:React.createElement(ProfilPage,{key:'pr'+refresh,signOut}),
+  };
+  const label=NAV.find(n=>n.key===page)?.label||'';
+  return React.createElement('div',{className:'app'},
+    React.createElement('aside',{className:'sidebar'+(open?' open':'')},
+      React.createElement('div',{className:'sidebar-logo'},
+        React.createElement('div',{className:'logo-icon'},'🏘'),
+        React.createElement('div',null,React.createElement('div',{className:'logo-text'},'Immo·Pro'),React.createElement('div',{className:'logo-sub'},'Gestion locative'))
+      ),
+      React.createElement('nav',{className:'sidebar-nav'},
+        SECTIONS.map(s=>React.createElement('div',{key:s,className:'nav-section'},
+          React.createElement('span',{className:'nav-label'},s),
+          NAV.filter(n=>n.section===s).map(n=>React.createElement('div',{key:n.key,className:'nav-item'+(page===n.key?' active':''),onClick:()=>go(n.key)},
+            React.createElement('span',{className:'nav-icon'},n.icon),
+            React.createElement('span',null,n.label),
+            n.badge>0&&React.createElement('span',{className:'nav-badge'},n.badge)
+          ))
+        ))
+      ),
+      React.createElement('div',{className:'sidebar-user'},
+        React.createElement('div',{className:'user-card'},
+          React.createElement('div',{className:'avatar',style:{width:32,height:32,fontSize:11},onClick:()=>go('profil')},'✉'),
+          React.createElement('div',{style:{flex:1,minWidth:0},onClick:()=>go('profil')},
+            React.createElement('div',{style:{fontSize:11,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#202124'}},userEmail||'Chargement…'),
+            React.createElement('div',{style:{fontSize:10,color:'#9AA0A6'}},'Propriétaire')
+          ),
+          React.createElement('span',{title:'Déconnexion',style:{fontSize:16,cursor:'pointer',color:'#BDC1C6',padding:'4px'},onClick:e=>{e.stopPropagation();signOut();}},'⏏')
+        )
+      )
+    ),
+    React.createElement('main',{className:'main'},
+      React.createElement('header',{className:'topbar'},
+        React.createElement('div',{className:'mob-toggle',onClick:()=>setOpen(!open)},'☰'),
+        React.createElement('div',{className:'page-title'},label),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8}},
+          React.createElement('div',{className:'search-box'},React.createElement('span',{style:{color:'#9AA0A6',marginRight:6}},'🔍'),React.createElement('input',{placeholder:'Rechercher…'})),
+          React.createElement('div',{className:'icon-btn',onClick:()=>go('messagerie')},'💬',React.createElement('div',{className:'notif-dot'})),
+          React.createElement('div',{className:'icon-btn'},'🔔',React.createElement('div',{className:'notif-dot'})),
+          React.createElement('div',{className:'avatar',style:{width:34,height:34,fontSize:11,cursor:'pointer'},onClick:()=>go('profil')},'✉')
+        )
+      ),
+      React.createElement('div',{className:'content'},pages[page]||pages.dashboard)
+    ),
+    open&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.3)',zIndex:99},onClick:()=>setOpen(false)}),
+    React.createElement('nav',{className:'mob-nav'},
+      React.createElement('div',{className:'mob-nav-items'},
+        MOB_NAV.map(n=>React.createElement('div',{key:n.key,className:'mob-nav-item'+(page===n.key?' active':''),onClick:()=>go(n.key)},
+          React.createElement('div',{className:'ni'},n.icon),React.createElement('div',null,n.label)
+        ))
+      )
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App,null));
+</script>
+</body>
+</html>
+<!DOCTYPE html><!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Immo·Pro — Gestion Locative</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F8F9FA;color:#202124;line-height:1.5;overflow-x:hidden}
+button,input,select,textarea{font-family:'Plus Jakarta Sans',sans-serif}
+button{cursor:pointer;border:none;background:none}
+.app{display:flex;min-height:100vh}
+.sidebar{width:260px;min-height:100vh;background:#fff;border-right:1px solid #E8EAED;position:fixed;top:0;left:0;display:flex;flex-direction:column;z-index:100;transition:transform .3s}
+.sidebar-logo{padding:22px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #F1F3F4}
+.logo-icon{width:36px;height:36px;background:#1B4F72;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+.logo-text{font-family:'DM Serif Display',serif;font-size:18px;color:#1B4F72}
+.logo-sub{font-size:10px;color:#9AA0A6;text-transform:uppercase;letter-spacing:.5px}
+.sidebar-nav{flex:1;padding:10px 12px;overflow-y:auto}
+.nav-section{margin-bottom:6px}
+.nav-label{font-size:10px;font-weight:600;color:#9AA0A6;text-transform:uppercase;letter-spacing:.8px;padding:8px 8px 4px;display:block}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13.5px;font-weight:500;color:#5F6368;cursor:pointer;transition:all .15s;margin-bottom:1px}
+.nav-item:hover{background:#F8F9FA;color:#202124}
+.nav-item.active{background:#EBF5FB;color:#1B4F72;font-weight:600}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-badge{margin-left:auto;background:#E74C3C;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:99px;min-width:18px;text-align:center}
+.sidebar-user{padding:14px;border-top:1px solid #F1F3F4}
+.user-card{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px;cursor:pointer}
+.user-card:hover{background:#F8F9FA}
+.main{margin-left:260px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{height:64px;background:#fff;border-bottom:1px solid #E8EAED;display:flex;align-items:center;padding:0 28px;gap:16px;position:sticky;top:0;z-index:50}
+.page-title{font-size:17px;font-weight:700;color:#202124;flex:1}
+.search-box{display:flex;align-items:center;gap:8px;background:#F8F9FA;border:1px solid #E8EAED;border-radius:8px;padding:7px 12px;width:220px}
+.search-box input{background:none;border:none;outline:none;font-size:13px;color:#202124;width:100%;font-family:'Plus Jakarta Sans',sans-serif}
+.icon-btn{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;color:#5F6368;cursor:pointer;position:relative}
+.icon-btn:hover{background:#F1F3F4}
+.notif-dot{position:absolute;top:7px;right:7px;width:7px;height:7px;background:#E74C3C;border-radius:50%;border:2px solid #fff}
+.content{padding:28px;flex:1}
+.avatar{border-radius:50%;background:#1B4F72;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+.card{background:#fff;border-radius:16px;border:1px solid #E8EAED;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card-header{padding:18px 22px 0;display:flex;align-items:center;justify-content:space-between}
+.card-body{padding:18px 22px}
+.card-title{font-size:11px;font-weight:700;color:#5F6368;text-transform:uppercase;letter-spacing:.6px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi{background:#fff;border-radius:16px;border:1px solid #E8EAED;padding:20px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.kpi-label{font-size:11px;font-weight:600;color:#9AA0A6;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.kpi-value{font-size:26px;font-weight:700;color:#202124;line-height:1;margin-bottom:6px}
+.kpi-sub{font-size:12px;color:#9AA0A6}
+.kpi-icon{position:absolute;right:16px;top:16px;font-size:26px;opacity:.1}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.b-success{background:#EAFAF1;color:#27AE60}
+.b-danger{background:#FDEDEC;color:#E74C3C}
+.b-warn{background:#FEF9E7;color:#F39C12}
+.b-info{background:#EBF5FB;color:#1B4F72}
+.b-gray{background:#F1F3F4;color:#5F6368}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-primary{background:#1B4F72;color:#fff}
+.btn-primary:hover{background:#2E86C1}
+.btn-secondary{background:#fff;color:#3C4043;border:1px solid #DADCE0}
+.btn-secondary:hover{background:#F8F9FA}
+.btn-sm{padding:5px 11px;font-size:12px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:600;color:#9AA0A6;text-transform:uppercase;letter-spacing:.5px;padding:10px 16px;text-align:left;border-bottom:1px solid #E8EAED;background:#F8F9FA;white-space:nowrap}
+td{padding:12px 16px;font-size:13.5px;border-bottom:1px solid #F1F3F4;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFBFC}
+.form-group{margin-bottom:14px}
+.form-label{font-size:12px;font-weight:600;color:#3C4043;margin-bottom:5px;display:block}
+.form-input{width:100%;padding:9px 12px;border:1px solid #DADCE0;border-radius:8px;font-size:13.5px;color:#202124;outline:none;transition:border .15s;font-family:'Plus Jakarta Sans',sans-serif;background:#fff}
+.form-input:focus{border-color:#1B4F72;box-shadow:0 0 0 3px rgba(27,79,114,.08)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:540px;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-hd{padding:22px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:17px;font-weight:700}
+.modal-close{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#9AA0A6;font-size:16px}
+.modal-close:hover{background:#F1F3F4}
+.modal-bd{padding:18px 24px}
+.modal-ft{padding:14px 24px;border-top:1px solid #F1F3F4;display:flex;justify-content:flex-end;gap:10px}
+.tabs{display:flex;gap:2px;background:#F1F3F4;padding:3px;border-radius:10px}
+.tab{padding:6px 14px;border-radius:7px;font-size:13px;font-weight:500;color:#5F6368;cursor:pointer;transition:all .15s}
+.tab.active{background:#fff;color:#202124;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.prop-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.prop-card{background:#fff;border-radius:16px;border:1px solid #E8EAED;overflow:hidden;cursor:pointer;transition:all .2s}
+.prop-card:hover{box-shadow:0 8px 24px rgba(0,0,0,.1);transform:translateY(-2px)}
+.prop-img{height:130px;background:linear-gradient(135deg,#1B4F72,#2E86C1);display:flex;align-items:center;justify-content:center;font-size:44px;position:relative}
+.prop-status-badge{position:absolute;top:10px;right:10px}
+.prop-info{padding:14px}
+.prop-name{font-size:14px;font-weight:700;color:#202124;margin-bottom:3px}
+.prop-addr{font-size:12px;color:#9AA0A6;margin-bottom:10px}
+.prop-stats{display:flex;gap:10px;align-items:center}
+.prop-stat{font-size:12px;color:#5F6368}
+.tl-item{display:flex;gap:12px;padding-bottom:16px;position:relative}
+.tl-item:not(:last-child):before{content:'';position:absolute;left:15px;top:34px;width:1px;height:calc(100% - 18px);background:#E8EAED}
+.tl-dot{width:32px;height:32px;border-radius:50%;background:#F1F3F4;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.tl-body{flex:1;padding-top:5px}
+.tl-title{font-size:13px;font-weight:600;color:#202124}
+.tl-sub{font-size:12px;color:#9AA0A6;margin-top:2px}
+.alert-item{display:flex;align-items:flex-start;gap:12px;padding:11px 14px;border-radius:10px;margin-bottom:8px}
+.alert-danger{background:#FFF5F5;border:1px solid #FFCDD2}
+.alert-warn{background:#FFFDE7;border:1px solid #FFF176}
+.alert-info{background:#E8F4FD;border:1px solid #BBDEFB}
+.stat-row{display:flex;align-items:center;padding:9px 0;border-bottom:1px solid #F1F3F4}
+.stat-row:last-child{border-bottom:none}
+.stat-label{font-size:13px;color:#5F6368;flex:1}
+.stat-val{font-size:13px;font-weight:600;color:#202124}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.page-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:12px;flex-wrap:wrap}
+.page-hd h1{font-size:22px;font-weight:700}
+.ticket-card{background:#fff;border:1px solid #E8EAED;border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;margin-bottom:10px}
+.ticket-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:#BDC1C6}
+.ticket-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ticket-title{font-size:14px;font-weight:600;color:#202124}
+.ticket-meta{display:flex;gap:12px;font-size:12px;color:#9AA0A6;margin-top:6px;flex-wrap:wrap;align-items:center}
+.msg-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;cursor:pointer;transition:all .15s}
+.msg-item:hover,.msg-item.active{background:#EBF5FB}
+.msg-name{font-size:13.5px;font-weight:600}
+.msg-preview{font-size:12px;color:#9AA0A6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:13.5px;line-height:1.5}
+.bubble-out{background:#1B4F72;color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.bubble-in{background:#F1F3F4;color:#202124;align-self:flex-start;border-bottom-left-radius:4px}
+.doc-item{display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;border:1px solid #E8EAED;cursor:pointer;transition:all .15s;margin-bottom:8px}
+.doc-item:hover{border-color:#1B4F72;box-shadow:0 2px 8px rgba(27,79,114,.08)}
+.doc-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.upload-zone{border:2px dashed #DADCE0;border-radius:16px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:20px}
+.upload-zone:hover{border-color:#1B4F72;background:#EBF5FB}
+.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #E8EAED;z-index:100;padding:6px 0 10px}
+.mob-nav-items{display:flex;justify-content:space-around}
+.mob-nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 10px;cursor:pointer;color:#9AA0A6;font-size:10px;font-weight:500;border-radius:8px}
+.mob-nav-item.active{color:#1B4F72}
+.mob-nav-item .ni{font-size:20px}
+.mob-toggle{display:none;width:36px;height:36px;border-radius:8px;align-items:center;justify-content:center;cursor:pointer;color:#202124;font-size:20px}
+/* CALENDAR */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-hd{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-day-name{font-size:11px;font-weight:600;color:#9AA0A6;text-align:center;padding:4px 0;text-transform:uppercase}
+.cal-cell{min-height:80px;border:1px solid #F1F3F4;border-radius:8px;padding:6px;background:#fff;transition:all .15s;cursor:pointer;position:relative}
+.cal-cell:hover{border-color:#DADCE0;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.cal-cell.today{border-color:#1B4F72;background:#EBF5FB}
+.cal-cell.other-month{background:#FAFAFA;opacity:.5}
+.cal-date{font-size:12px;font-weight:600;color:#5F6368;margin-bottom:4px}
+.cal-date.today-num{background:#1B4F72;color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
+.cal-event{font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.cal-event-loyer{background:#EAFAF1;color:#27AE60}
+.cal-event-bail{background:#EBF5FB;color:#1B4F72}
+.cal-event-assurance{background:#FEF9E7;color:#F39C12}
+.cal-event-retard{background:#FDEDEC;color:#E74C3C}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.cal-month{font-size:18px;font-weight:700}
+.cal-nav-btn{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:#5F6368;border:1px solid #DADCE0;background:#fff}
+.cal-nav-btn:hover{background:#F8F9FA}
+.event-list-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1px solid #F1F3F4;margin-bottom:6px;background:#fff}
+.event-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+/* QUITTANCE */
+.quittance-preview{background:#fff;border:1px solid #E8EAED;border-radius:12px;padding:32px;max-width:600px;font-family:'Plus Jakarta Sans',sans-serif}
+.quittance-logo{font-family:'DM Serif Display',serif;font-size:22px;color:#1B4F72;margin-bottom:4px}
+.quittance-divider{border:none;border-top:2px solid #1B4F72;margin:16px 0}
+.quittance-table{width:100%;border-collapse:collapse;margin:16px 0}
+.quittance-table td{padding:8px 4px;font-size:13px;border-bottom:1px solid #F1F3F4}
+.quittance-table tr:last-child td{border-bottom:none;font-weight:700;font-size:14px}
+.quittance-stamp{display:inline-block;border:3px solid #27AE60;color:#27AE60;font-weight:700;font-size:13px;padding:6px 16px;border-radius:4px;transform:rotate(-5deg);margin-top:8px;letter-spacing:.5px}
+/* ASSURANCE */
+.assur-card{background:#fff;border:1px solid #E8EAED;border-radius:12px;padding:16px;cursor:pointer;transition:all .15s;margin-bottom:10px;display:flex;align-items:center;gap:14px}
+.assur-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);border-color:#BDC1C6}
+.assur-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.assur-progress{height:5px;background:#E8EAED;border-radius:99px;overflow:hidden;margin-top:6px}
+.assur-progress-bar{height:100%;border-radius:99px;transition:width .4s}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.prop-grid{grid-template-columns:repeat(2,1fr)}.cal-grid{grid-template-columns:repeat(7,1fr)}}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}.mob-nav{display:block}.mob-toggle{display:flex}
+  .content{padding:16px;padding-bottom:84px}
+  .kpi-grid{grid-template-columns:1fr 1fr}.prop-grid{grid-template-columns:1fr}
+  .g2,.g3{grid-template-columns:1fr}.topbar{padding:0 16px}.page-title{font-size:15px}
+  .search-box{display:none}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script type="text/javascript">
+// Safety check - if supabase didn't load, show error
+window.addEventListener('DOMContentLoaded', function() {
+  if (!window.supabase) {
+    document.getElementById('root').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#E74C3C;">Erreur : impossible de charger Supabase. Vérifiez votre connexion internet.</div>';
+  }
+});
+</script>
+<script type="text/javascript">
+const { useState, useEffect, useCallback } = React;
+
+/* ── SUPABASE CONFIG ── */
+const SUPA_URL = 'https://ptprpnzxcnprzcuvhxks.supabase.co';
+const SUPA_KEY = 'sb_publishable_j38Voy7ug-Gs33xxWvq_iA_fJBRVoQ-';
+window._sb = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const sb = window._sb;
+
+/* ── TYPE EMOJI MAP ── */
+const TYPE_EMOJI = {'Appartement':'🏢','Maison':'🏡','Studio':'🏠','Garage':'🅿️','Local commercial':'🏪'};
+const getInitials = name => name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+/* ── GLOBAL STATE (loaded from Supabase) ── */
+let PROPS=[], TENANTS=[], PAYMENTS=[], TICKETS=[], DOCS=[], MSGS=[], ASSURANCES=[];
+
+/* ── DATA LOADER ── */
+async function loadAllData() {
+  const [props,tenants,payments,tickets,docs] = await Promise.all([
+    sb.from('properties').select('*').order('created_at'),
+    sb.from('tenants').select('*').order('created_at'),
+    sb.from('payments').select('*').order('created_at'),
+    sb.from('tickets').select('*').order('created_at'),
+    sb.from('documents').select('*').order('created_at'),
+  ]);
+  // assurances table is optional - won't crash if not yet created
+  const assurances = await sb.from('assurances').select('*').order('created_at').then(r=>r).catch(()=>({data:[]}));
+  if(!assurances.data) assurances.data=[];
+
+  PROPS = (props.data||[]).map(p=>({
+    ...p,
+    img: TYPE_EMOJI[p.type]||'🏠',
+    features: p.features ? (Array.isArray(p.features)?p.features:p.features.split(',').map(f=>f.trim())) : [],
+    tenantId: null,
+  }));
+
+  TENANTS = (tenants.data||[]).map(t=>({
+    ...t,
+    propId: t.property_id,
+    statusBail: t.bail_status||'Actif',
+    initials: getInitials(t.name),
+    urgence: t.urgence_contact||'',
+  }));
+
+  // Link tenants to properties
+  TENANTS.forEach(t=>{ const p=PROPS.find(p=>p.id===t.property_id); if(p) p.tenantId=t.id; });
+
+  PAYMENTS = (payments.data||[]).map(p=>({
+    ...p,
+    tid: p.tenant_id,
+    pid: p.property_id,
+    date: p.payment_date,
+    mode: p.payment_mode||p.mode||null,
+  }));
+
+  TICKETS = (tickets.data||[]).map(t=>({
+    ...t,
+    pid: t.property_id,
+    tid: t.tenant_id,
+    prio: t.priority||'normale',
+    desc: t.description||'',
+    log: t.log ? (Array.isArray(t.log)?t.log:JSON.parse(t.log)) : [{d:t.created_at?.split('T')[0]||'',m:'Ticket créé'}],
+  }));
+
+  DOCS = (docs.data||[]).map(d=>({
+    ...d,
+    pid: d.property_id,
+    tid: d.tenant_id,
+    date: d.uploaded_at||d.created_at?.split('T')[0]||'',
+    size: d.size||'—',
+  }));
+
+  ASSURANCES = (assurances.data||[]).map(a=>({
+    ...a,
+    propId: a.property_id,
+    tenantId: a.tenant_id||null,
+    compagnie: a.compagnie||'',
+    numContrat: a.num_contrat||'',
+    contact: a.contact||'',
+  }));
+
+  MSGS = TENANTS.slice(0,3).map(t=>({
+    id:t.id, tid:t.id, name:t.name, initials:t.initials,
+    preview:'Aucun message pour l\'instant', time:'—', unread:0, conv:[],
+  }));
+
+  return true;
+}
+
+/* ── DB HELPERS ── */
+const db = {
+  addProperty: d => sb.from('properties').insert([d]).select(),
+  updateProperty: (id,d) => sb.from('properties').update(d).eq('id',id).select(),
+  deleteProperty: id => sb.from('properties').delete().eq('id',id),
+  addTenant: d => sb.from('tenants').insert([d]).select(),
+  deleteTenant: id => sb.from('tenants').delete().eq('id',id),
+  addPayment: d => sb.from('payments').insert([d]).select(),
+  updatePayment: (id,d) => sb.from('payments').update(d).eq('id',id).select(),
+  addTicket: d => sb.from('tickets').insert([d]).select(),
+  updateTicket: (id,d) => sb.from('tickets').update(d).eq('id',id).select(),
+  addDoc: d => sb.from('documents').insert([d]).select(),
+  addAssurance: d => sb.from('assurances').insert([d]).select(),
+};
+
+const eur = n => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n||0);
+const propById = id => PROPS.find(p=>p.id===id);
+const tenantById = id => TENANTS.find(t=>t.id===id);
+
+/* ── AUTH GATE ── */
+function AuthGate({onAuth}) {
+  const [email,setEmail]=useState('');
+  const [pwd,setPwd]=useState('');
+  const [mode,setMode]=useState('login');
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState('');
+  const [msg,setMsg]=useState('');
+
+  const handle = async e => {
+    e.preventDefault();
+    setLoading(true); setErr(''); setMsg('');
+    if(mode==='login') {
+      const {error} = await sb.auth.signInWithPassword({email,password:pwd});
+      if(error) setErr('Email ou mot de passe incorrect.');
+      else onAuth();
+    } else if(mode==='signup') {
+      const {error} = await sb.auth.signUp({email,password:pwd});
+      if(error) setErr(error.message);
+      else setMsg('Vérifiez votre email pour confirmer votre compte.');
+    } else {
+      const {error} = await sb.auth.resetPasswordForEmail(email);
+      if(error) setErr(error.message);
+      else setMsg('Email de réinitialisation envoyé !');
+    }
+    setLoading(false);
+  };
+
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#F8F9FA',display:'flex',alignItems:'center',justifyContent:'center',padding:20}},
+    React.createElement('div',{style:{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 8px 40px rgba(0,0,0,.12)'}},
+      React.createElement('div',{style:{textAlign:'center',marginBottom:32}},
+        React.createElement('div',{style:{fontSize:44,marginBottom:8}},'🏘'),
+        React.createElement('div',{style:{fontFamily:"'DM Serif Display',serif",fontSize:28,color:'#1B4F72',marginBottom:4}},'Immo·Pro'),
+        React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Gestion locative privée')
+      ),
+      err&&React.createElement('div',{style:{background:'#FFF5F5',border:'1px solid #FFCDD2',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#E74C3C',marginBottom:16}},err),
+      msg&&React.createElement('div',{style:{background:'#EAFAF1',border:'1px solid #A9DFBF',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#27AE60',marginBottom:16}},msg),
+      React.createElement('form',{onSubmit:handle},
+        React.createElement('div',{className:'form-group'},
+          React.createElement('label',{className:'form-label'},'Adresse email'),
+          React.createElement('input',{className:'form-input',type:'email',value:email,onChange:e=>setEmail(e.target.value),placeholder:'votre@email.fr',required:true})
+        ),
+        mode!=='reset'&&React.createElement('div',{className:'form-group'},
+          React.createElement('label',{className:'form-label'},'Mot de passe'),
+          React.createElement('input',{className:'form-input',type:'password',value:pwd,onChange:e=>setPwd(e.target.value),placeholder:'••••••••',required:mode!=='reset'})
+        ),
+        React.createElement('button',{type:'submit',className:'btn btn-primary',style:{width:'100%',justifyContent:'center',padding:'11px',fontSize:14,marginTop:8},disabled:loading},
+          loading?'Chargement…':mode==='login'?'Se connecter':mode==='signup'?'Créer mon compte':'Réinitialiser'
+        )
+      ),
+      React.createElement('div',{style:{marginTop:20,textAlign:'center',fontSize:13,color:'#9AA0A6',display:'flex',flexDirection:'column',gap:8}},
+        mode==='login'&&React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72'},onClick:()=>setMode('reset')},'Mot de passe oublié ?'),
+        mode==='login'&&React.createElement('span',null,'Pas encore de compte ? ',React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72',fontWeight:600},onClick:()=>setMode('signup')},'Créer un compte')),
+        mode!=='login'&&React.createElement('span',{style:{cursor:'pointer',color:'#1B4F72'},onClick:()=>setMode('login')},'← Retour à la connexion')
+      )
+    )
+  );
+}
+
+/* ── LOADING SCREEN ── */
+function LoadingScreen() {
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#F8F9FA',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}},
+    React.createElement('div',{style:{fontSize:48}},'🏘'),
+    React.createElement('div',{style:{fontFamily:"'DM Serif Display',serif",fontSize:24,color:'#1B4F72'}},'Immo·Pro'),
+    React.createElement('div',{style:{fontSize:13,color:'#9AA0A6'}},'Chargement de vos données…'),
+    React.createElement('div',{style:{width:40,height:40,border:'3px solid #E8EAED',borderTop:'3px solid #1B4F72',borderRadius:'50%',animation:'spin 1s linear infinite'}}),
+    React.createElement('style',null,'@keyframes spin{to{transform:rotate(360deg)}}')
+  );
+}
+
+const STATUS_INFO = {
+  loue:{label:"Loué",cls:"b-success"},
+  vacant:{label:"Vacant",cls:"b-gray"},
+  travaux:{label:"En travaux",cls:"b-warn"},
+};
+const PAY_INFO = {
+  paye:{label:"Payé",cls:"b-success"},
+  retard:{label:"En retard",cls:"b-danger"},
+  attente:{label:"En attente",cls:"b-warn"},
+};
+const TICKET_STATUS = {
+  nouveau:{label:"Nouveau",cls:"b-info"},
+  en_cours:{label:"En cours",cls:"b-warn"},
+  resolu:{label:"Résolu",cls:"b-success"},
+  cloture:{label:"Clôturé",cls:"b-gray"},
+};
+const PRIO = {
+  haute:{label:"Haute",cls:"b-danger"},
+  normale:{label:"Normale",cls:"b-info"},
+  basse:{label:"Basse",cls:"b-gray"},
+};
+
+function Bdg({type,children}){
+  return React.createElement('span',{className:'badge '+type},children);
+}
+
 function Dashboard({onNav,reload}){
   const loyes=PAYMENTS.filter(p=>p.status==='paye');
   const retard=PAYMENTS.filter(p=>p.status==='retard'||p.status==='attente');
